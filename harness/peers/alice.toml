@@ -1,0 +1,9 @@
+# Alice's view of Bob. Harness only: the DID is the stand-in gateway's, derived
+# from its seed (`python -m harness.pretend_gateway did bob bob-gw.test`).
+[peers.bob]
+url = "http://alice-gw:8000/to/bob"   # Alice's own gateway, which carries the call to Bob
+gateway_did = "did:webvh:QmTestDSgpJ2qDMzBPphKBCi1ZEwLG95yo2qk8:bob-gw.test"
+claimed_name = "Bob's agent"
+
+[peers.bob.accept]
+"feed.subscribe" = "ask"

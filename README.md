@@ -1,0 +1,138 @@
+# agentlab-agent-kit
+
+> [!WARNING]
+> **Experimental.** This is early, under-tested code for the Agent Lab. The
+> gateway behaviour it relies on is listed, dated and sourced in
+> [`CLAIMS.md`](./CLAIMS.md). Most of it was measured by the Lab and has not yet
+> been re-measured with this toolkit. Verify against your own gateway, and open
+> an issue when something is wrong.
+>
+> Not affiliated with, endorsed by, or supported by Affinidi.
+
+**Your own agent in the Agent Lab.** It is a small, long-running A2A agent that
+you deploy behind your own Agent Gateway. It represents you to other
+participants' agents: it keeps a feed with the people you choose, and later it
+will negotiate meetings for you. It asks you before it commits you to anything.
+It tells you, for every message it receives, whether the sender's gateway
+vouched for it or the sender only said so.
+
+The toolkit grows by **modules**. Today there are two:
+
+| Module | What it does |
+|---|---|
+| `ping` | Ask a peer how it labelled your call. The first thing to run on a new route. |
+| `feed` | A shared intel feed. You publish to subscribers you approved, and you receive from peers you subscribed to. Every item carries a label. |
+
+Next is `scheduling`: two organisations find a meeting slot, and only free time
+crosses the boundary. See the roadmap below.
+
+## What "gateway-verified" means
+
+Every inbound message gets one of two labels before any module sees it.
+
+- **✔ gateway-verified**:
+  - the message carried a presentation from the sender's gateway;
+  - both of its proofs verified;
+  - the gateway is the one whose DID you pinned for that peer in `peers.toml`.
+- **⚠ self-asserted**: anything else. The reason is shown next to the item.
+
+Gateway-verified means *a caller whose gateway vouched for this agent identity
+delivered this message*. It does **not** mean the content is signed, and it
+cannot show the message is fresh. The gateway signs who is calling, not what
+they say, and nothing binds that signature to one request. See
+[`docs/threat-model.md`](./docs/threat-model.md).
+
+## Try it on your laptop
+
+Two agents, Alice and Bob, each behind a stand-in gateway that signs
+presentations the way a real gateway does:
+
+```bash
+docker compose -f harness/docker-compose.yml up --build -d
+./harness/demo.sh
+```
+
+Bob subscribes. Alice's agent asks her, she approves, she posts, and Bob reads:
+
+```
+✔ gateway-verified · from alice · 2026-09-28T16:12:26+00:00 · #demo
+│ Harness check: the feed works end to end.
+```
+
+Speak to either agent as its owner:
+
+```bash
+docker compose -f harness/docker-compose.yml exec bob python -m labagent feed read
+docker compose -f harness/docker-compose.yml exec alice python -m labagent approvals
+```
+
+Without Docker, run the suite, which drives the same two-agent topology in-process:
+
+```bash
+./run.sh test
+```
+
+## Run your own
+
+> **Not yet proven against a live Agent Gateway.** The stand-in gateway proves
+> the verifier and the labels. Hosting behind a real gateway (M3) and a
+> participant-to-participant hop (M4) are next. Until then, treat these steps as
+> the intended shape, not a tested runbook.
+
+1. `cp .env.example .env`. Set `LABAGENT_NAME` and `LABAGENT_API_KEYS`
+   (`openssl rand -hex 32`).
+2. `cp peers.example.toml peers.toml` and add the people you know. Each entry
+   needs your gateway's transit point for them, and the gateway DID they gave
+   you.
+3. Put the agent behind your gateway:
+   - An access point whose external target is this agent's public port, with
+     the key from step 1 injected on the last leg.
+   - An Identity element that marks `name`.
+   - Set `LABAGENT_PUBLIC_URL` to the access point's URL.
+4. `./run.sh serve`, or build `deploy/Dockerfile`.
+5. As the owner, run `./run.sh health`, `./run.sh ping <peer>` and
+   `./run.sh feed subscribe <peer>`.
+
+The owner API listens on 127.0.0.1 only. Never route it through the gateway.
+
+## Owner commands
+
+```
+labagent health | peers | audit
+labagent approvals [--all]        labagent approve <id> | deny <id>
+labagent outbox [--flush]
+labagent ping <peer>
+labagent feed subscribe <peer> | unsubscribe <peer> | subscriptions | subscribers
+labagent feed post "<text>" [--topic t]
+labagent feed read [--verified-only] [--peer p] [--limit n]
+```
+
+## Adding a module
+
+A module is one directory under `labagent/modules/`. It provides:
+- skills for the agent card (`<module>.<action>`);
+- its own tables;
+- an inbound handler that returns an acknowledgement;
+- owner commands;
+- an `on_decision` hook for anything it queued for approval.
+
+The core does the rest: authentication, labelling, deduplication, audit, the
+approval queue and the outbox. See `labagent/core/capability.py`, and
+`modules/ping` for the smallest example. Register it in `core/registry.py`.
+Its commands then appear in the CLI.
+
+## Roadmap
+
+| | |
+|---|---|
+| M0–M2 ✅ | Skeleton, core, `ping`, `feed`, the harness |
+| M3 | Hosting behind one real gateway: a live presentation verifies, and the tunnel and admin port behave |
+| M4 | Measure a participant-to-participant hop, and confirm or revise the label rule |
+| M5 | `scheduling` with a fake or ICS calendar. Free intervals only cross the boundary; deterministic, never LLM-decided |
+| Later | Google Calendar; discovery through the Lab directory; a personal digest over the feed |
+
+## Licence
+
+Apache 2.0. See [`LICENSE`](./LICENSE) and [`NOTICE`](./NOTICE). Affinidi,
+Affinidi Trust Fabric and Agent Gateway are trademarks of their owner. The
+licence grants no trademark rights.

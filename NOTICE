@@ -1,0 +1,28 @@
+agentlab-agent-kit (working name)
+Copyright 2026 Choose Mission Ltd
+
+This product includes software developed by MISSION
+(https://choosemission.com).
+
+Portions are derived from Affinidi's affinidi-labs-tgw-get-started repository
+(https://github.com/affinidi/affinidi-labs-tgw-get-started), used under the
+Apache License, Version 2.0, at upstream commit
+64babfc3ef27a3b1fb73ec9c25246b032b5708c4, at second hand: by way of MISSION's
+own `servers/lab-coordinator` in the Agent Lab repository. The derived portion
+is the agent card's shape and the identity extension URIs, in
+`labagent/app.py`, whose header names both steps of that chain.
+
+`labagent/trust/{resolve,verify,identity}.py` and `labagent/gate.py` are
+vendored from MISSION's `servers/lab-coordinator`; each file's header says so,
+and marks what was changed here.
+
+Affinidi, Affinidi Trust Fabric and Agent Gateway are trademarks of their
+respective owner. No endorsement or affiliation is claimed, and no trademark
+rights are granted by the licence covering this repository. The upstream
+NOTICE applies to the derived portions:
+
+  This License does not grant permission to use the trade names, trademarks,
+  service marks, or product names of the Licensor, except as required for
+  reasonable and customary use in describing the origin of the Work and
+  reproducing the content of the this notice when they are further
+  distributing this code.
