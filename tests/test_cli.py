@@ -45,6 +45,23 @@ def test_module_commands_are_built_from_the_modules(owner_cli, capsys) -> None:
     assert "(nothing yet)" in capsys.readouterr().out
 
 
+def test_peers_are_managed_from_the_cli(owner_cli, capsys) -> None:
+    ctx: Context = owner_cli.alice.ctx
+    cli.main(["peers", "add", "carol", "https://carol.example/a2a/", "--mode", "direct"])
+    assert ctx.peers.get("carol").mode == "direct"
+    cli.main(["peers", "pin", "carol", "did:web:carol.example"])
+    cli.main(["peers", "update", "carol", "--accept-self-asserted"])
+    carol = ctx.peers.get("carol")
+    assert (carol.gateway_did, carol.accept_self_asserted, carol.mode) == ("did:web:carol.example", True, "direct")
+    cli.main(["peers", "update", "carol", "--url", "https://carol.example/v2/"])
+    assert ctx.peers.get("carol").accept_self_asserted is True  # untouched when not named
+    capsys.readouterr()
+    cli.main(["peers"])
+    assert '"name": "carol"' in capsys.readouterr().out
+    with pytest.raises(SystemExit):
+        cli.main(["peers", "add", "dave", "https://dave.example/", "--mode", "sideways"])
+
+
 def test_a_refusal_exits_non_zero(owner_cli) -> None:
     with pytest.raises(SystemExit):
         cli.main(["ping", "nobody"])

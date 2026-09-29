@@ -11,6 +11,7 @@ x-agent: &agent
   environment: &agent-env
     LABAGENT_RESOLVE_HOSTS: "alice-gw.test=http://alice-gw:8000,bob-gw.test=http://bob-gw:8000"
     LABAGENT_OUTBOX_INTERVAL: "1"
+    LABAGENT_ALLOW_HTTP_PEERS: "true"
 
 services:
   alice:
@@ -21,6 +22,8 @@ services:
       LABAGENT_PUBLIC_URL: "http://alice-gw.test/a2a/"
       LABAGENT_API_KEYS: "harness-alice-inbound-key-0000000000000000000000000000"
       LABAGENT_OWNER_KEYS: "harness-alice-owner-key-000000000000000000000000000000"
+      # Bob's inbound key, for the demo's direct peer: Alice calling Bob's agent itself.
+      BOB_DIRECT_KEY: "harness-bob-inbound-key-00000000000000000000000000000000"
     volumes: ["./peers/alice.toml:/app/peers.toml:ro", "alice-data:/app/data"]
 
   bob:

@@ -50,11 +50,11 @@ class PingModule(Capability):
         async def ping(ctx: Context, peer: str) -> dict[str, Any]:
             target = ctx.peers.get(peer)
             if target is None:
-                return refuse(f"no peer called {peer!r} in peers.toml")
+                return refuse(f"no peer called {peer!r}")
             try:
                 reply = await ctx.outbound.send(target, envelope.body("ping"))
             except OutboundError as error:
                 return refuse(str(error))
-            return {"ok": True, "peer": peer, "reply": reply}
+            return {"ok": True, "peer": peer, "mode": target.mode, "reply": reply}
 
         return [OwnerCommand("ping", "Ping a peer and see how it labelled you.", ping, (Arg("peer", "peer name"),))]

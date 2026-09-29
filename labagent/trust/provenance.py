@@ -6,7 +6,7 @@
 
 - `gateway-verified`: a gateway presentation arrived on the request leg, BOTH
   proofs verified, and the credential's issuer is exactly the gateway DID you
-  pinned for a peer in `peers.toml`.
+  pinned for a peer.
 - `self-asserted`: anything else. The reason is always recorded, because "why
   isn't this verified?" is the first question an owner will ask.
 

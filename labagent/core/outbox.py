@@ -72,7 +72,7 @@ class Outbox:
             peer = self._peers.get(row["peer"])
             attempts = row["attempts"] + 1
             if peer is None:
-                self._fail(row["id"], attempts, f"{row['peer']} is no longer in peers.toml", final=True)
+                self._fail(row["id"], attempts, f"{row['peer']} is no longer a peer", final=True)
                 continue
             try:
                 reply = await self._outbound.send(peer, payload)

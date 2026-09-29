@@ -15,7 +15,7 @@ a feed, negotiate a meeting. It contributes four things:
 
 The core does the rest: authentication, provenance, dedupe, audit, the approval
 queue and the outbox. A module never sees a message whose shape it did not ask
-for, and never gets an outbound address from anywhere but peers.toml.
+for, and never gets an outbound address from anywhere but the owner's peer table.
 """
 
 from __future__ import annotations

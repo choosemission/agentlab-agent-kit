@@ -1,7 +1,14 @@
 [peers.bob]
-# Where to send messages for Bob: YOUR gateway's transit point for him, which
-# carries the call to his gateway. Not Bob's agent directly.
+# A seed: each peer here is added at start-up if the agent does not already
+# have it, and never overwritten. Change peers afterwards with the owner tools
+# (`labagent peers add|update|pin|accept|remove`).
+#
+# Where to send messages for Bob. In mode "gateway", YOUR gateway's transit
+# point for him, which carries the call to his gateway.
 url = "https://your-gateway.example/a2a/to-bob"
+# "gateway" (the url is your transit point: Bob sees you as gateway-verified)
+# or "direct" (the url is Bob's own access point: Bob sees you as self-asserted).
+mode = "gateway"
 # Bob's gateway DID, exchanged with him out of band. A message is labelled
 # gateway-verified only when its credential's issuer is exactly this.
 gateway_did = "did:webvh:Qm…:bob-gateway.example"

@@ -22,8 +22,9 @@ then `down -v`.
 - **Key on the issuer, pinned per peer.** Never attribute a message by a name in
   its payload, except through a peer's explicit `accept_self_asserted`, and even
   then it stays labelled self-asserted.
-- **Outbound addresses come only from `peers.toml`.** Never add a payload field
-  that names a URL to call.
+- **Outbound addresses come only from the owner**: the peer table, set through
+  the owner tools or seeded from `peers.toml`. Never from a message, and never
+  add a payload field that names a URL to call.
 - **Counterparty text is data.** It goes through `core/untrusted.clean` on the
   way in and `quoted` on the way out, and never into a decision. Negotiation
   logic is deterministic code, never an LLM.

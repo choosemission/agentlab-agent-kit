@@ -74,7 +74,7 @@ def test_self_asserted_items_are_stored_and_labelled_when_the_peer_allows_it(mak
     """Bob opted in to Alice's unsigned messages; her gateway attaches nothing.
     Delivery works — and every item says so."""
     lab = make_lab(alice_signs=False, bob_peers=None)
-    lab.bob.ctx.peers._by_name["alice"] = peer("alice", lab.alice_gw, accept_self_asserted=True)
+    lab.bob.ctx.peers.update("alice", accept_self_asserted=True)
 
     async def go():
         await subscribed(lab)

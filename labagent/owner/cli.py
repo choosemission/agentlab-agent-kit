@@ -34,8 +34,9 @@ from typing import Any
 
 import httpx
 
+from ..core.capability import Arg
 from ..core.registry import KNOWN
-from .tools import render
+from .tools import PEER_COMMANDS, render
 
 
 def _owner_url() -> str:
@@ -80,7 +81,11 @@ def _parser() -> argparse.ArgumentParser:
 
     sub.add_parser("serve", help="run the agent (reads LABAGENT_* from the environment)")
     sub.add_parser("health", help="is the agent up, and what is waiting")
-    sub.add_parser("peers", help="list configured peers")
+    peers = sub.add_parser("peers", help="list your peers, or change them")
+    peers.set_defaults(dispatch="peers")
+    verbs = peers.add_subparsers(dest="module_command")
+    for verb, (help, args) in PEER_COMMANDS.items():
+        _command(verbs, verb, help, args, f"peers_{verb}")
     approvals = sub.add_parser("approvals", help="what is waiting for your decision")
     approvals.add_argument("--all", action="store_true")
     for name in ("approve", "deny"):
@@ -105,17 +110,24 @@ def _parser() -> argparse.ArgumentParser:
             )
             targets = [(group, c, f"{module_name}_{c.name}") for c in commands]
         for container, cmd, dispatch in targets:
-            p = container.add_parser(cmd.name, help=cmd.help)
-            p.set_defaults(dispatch=dispatch)
-            for arg in cmd.args:
-                flag = "--" + arg.name.replace("_", "-")
-                if arg.kind is bool:
-                    p.add_argument(flag, dest=arg.name, action="store_true", help=arg.help)
-                elif arg.option or not arg.required:
-                    p.add_argument(flag, dest=arg.name, type=arg.kind, default=arg.default, help=arg.help)
-                else:
-                    p.add_argument(arg.name, type=arg.kind, help=arg.help)
+            _command(container, cmd.name, cmd.help, cmd.args, dispatch)
     return parser
+
+
+def _command(container: Any, name: str, help: str, args: tuple[Arg, ...], dispatch: str) -> None:
+    p = container.add_parser(name, help=help)
+    p.set_defaults(dispatch=dispatch)
+    for arg in args:
+        flag = "--" + arg.name.replace("_", "-")
+        if arg.kind is bool and arg.default is None:
+            # Unset unless given, so an update changes only what you name.
+            p.add_argument(flag, dest=arg.name, action=argparse.BooleanOptionalAction, help=arg.help)
+        elif arg.kind is bool:
+            p.add_argument(flag, dest=arg.name, action="store_true", help=arg.help)
+        elif arg.option or not arg.required:
+            p.add_argument(flag, dest=arg.name, type=arg.kind, default=arg.default, help=arg.help)
+        else:
+            p.add_argument(arg.name, type=arg.kind, help=arg.help)
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -141,7 +153,7 @@ def main(argv: list[str] | None = None) -> None:
             sys.exit(1)
         return
 
-    if args.command in ("health", "peers", "audit"):
+    if args.command in ("health", "audit"):
         return _print(_call(args.command))
     if args.command == "approvals":
         return _print(_call("approvals", {"status": "all"} if args.all else {}))

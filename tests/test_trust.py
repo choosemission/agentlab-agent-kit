@@ -26,7 +26,7 @@ def metadata(gateway: TestGateway | None = GW, name: str = "Alice's agent") -> d
     return (gateway.attach(message) if gateway else message)["metadata"]
 
 
-PEERS = Peers([Peer(name="alice", url="http://x/", gateway_did=GW.gateway_did, claimed_name="Alice's agent")])
+PEERS = Peers.of([Peer(name="alice", url="http://x/", gateway_did=GW.gateway_did, claimed_name="Alice's agent")])
 
 
 class TestStandInGateway:
@@ -81,7 +81,7 @@ class TestLabel:
         assert p.label == SELF_ASSERTED and "switched off" in p.reason
 
     def test_self_assertion_is_attributable_only_with_the_peers_opt_in(self) -> None:
-        lenient = Peers([Peer(name="alice", url="http://x/", claimed_name="Alice's agent", accept_self_asserted=True)])
+        lenient = Peers.of([Peer(name="alice", url="http://x/", claimed_name="Alice's agent", accept_self_asserted=True)])
         p = assess(metadata(None), verifier(), lenient)
         assert p.label == SELF_ASSERTED
         assert attributable(p, lenient).name == "alice"

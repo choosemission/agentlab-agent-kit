@@ -27,7 +27,7 @@ everything but the agent card and the health check.
 ```bash
 cp .env.example .env              # set LABAGENT_NAME; LABAGENT_API_KEYS=$(openssl rand -hex 32)
                                   # and a different LABAGENT_OWNER_KEYS=$(openssl rand -hex 32)
-touch peers.toml                  # must exist, even empty
+touch peers.toml                  # must exist, even empty: an optional seed of peers
 docker compose -f deploy/docker-compose.yml up --build -d
 ./deploy/check.sh                 # every line PASS
 ```
@@ -49,8 +49,8 @@ surface can only reference what already exists.
      It has appeared both as *Target Authentication* on the Managed Agent node
      and as an API key credential on the Managed Agent → External leg.
    - **Access point**: a route of your choice. Source authentication is up to
-     you. If you set any, give the credential to `peers.toml` in step 4
-     (`api_key_env`).
+     you. If you set any, put the credential in `.env` and name that variable
+     with `--api-key-env` when you add yourself as a peer in step 3.
 3. **An Identity element on the inbound leg** (Access Point → Managed Agent):
    - extraction **Payload**;
    - meta field **`agentIdentity`**;
@@ -77,30 +77,25 @@ Then set `LABAGENT_PUBLIC_URL` in `.env` to the access point's URL, and
 ## 3. Call yourself through your gateway
 
 The quickest proof the route signs: your agent calls its own access point.
-Add yourself to `peers.toml`, **without** a `gateway_did` for now:
-
-```toml
-[peers.me]
-url = "https://<your-access-point>"
-# api_key_env = "MY_ACCESS_POINT_KEY"   # only if the access point wants one
-```
+Add yourself as a peer, **without** a `gateway_did` for now. No restart is
+needed: peers are the agent's own data, changed through your owner tools.
 
 ```bash
-docker compose -f deploy/docker-compose.yml restart agent
-docker compose -f deploy/docker-compose.yml exec agent python -m labagent ping me
+lab() { docker compose -f deploy/docker-compose.yml exec agent python -m labagent "$@"; }
+lab peers add me https://<your-access-point>   # --api-key-env MY_ACCESS_POINT_KEY if it wants one
+lab ping me
 ```
 
 Expect `self-asserted` with the reason *"verified, but gateway did:webvh:… is
 not pinned for any peer"*. That means both proofs verified and your gateway's
-DID is the one named. Pin it:
+DID is the one named. Pin it, exactly as the reason printed it, and ping again:
 
-```toml
-[peers.me]
-url = "https://<your-access-point>"
-gateway_did = "did:webvh:…"          # exactly as the reason printed it
+```bash
+lab peers pin me 'did:webvh:…'
+lab ping me
 ```
 
-Restart the agent and ping again. Expect `gateway-verified`.
+Expect `gateway-verified`.
 
 Calling the access point by hand instead? A `422` with
 `identity_validation_failed` means the message did not carry the

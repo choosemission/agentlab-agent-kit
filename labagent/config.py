@@ -37,6 +37,8 @@ class Config:
     owner_port: int = 8081
     db_path: str = "data/labagent.sqlite3"
     peers_path: str = "peers.toml"
+    #: Harness only: let a peer's url be plain http://.
+    allow_http_peers: bool = False
     modules: tuple[str, ...] = ("ping", "feed")
     #: Verify gateway presentations. Without it nothing is ever labelled
     #: gateway-verified, which is the honest consequence rather than a mode.
@@ -103,6 +105,7 @@ def config_from_env(env: Mapping[str, str] | None = None) -> Config:
         owner_port=int(env.get("LABAGENT_OWNER_PORT", "8081")),
         db_path=env.get("LABAGENT_DB", "data/labagent.sqlite3"),
         peers_path=env.get("LABAGENT_PEERS", "peers.toml"),
+        allow_http_peers=env.get("LABAGENT_ALLOW_HTTP_PEERS") == "true",
         modules=tuple(m.strip() for m in env.get("LABAGENT_MODULES", "ping,feed").split(",") if m.strip()),
         verify=env.get("LABAGENT_VERIFY") != "false",
         strict_proof_purpose=env.get("LABAGENT_STRICT_PROOF_PURPOSE") == "true",

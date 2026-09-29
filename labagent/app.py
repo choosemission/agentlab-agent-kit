@@ -49,7 +49,7 @@ from .core.registry import Registry
 from .core.store import Store
 from .gate import ApiKeyGate
 from .owner.mcp import create_owner_app
-from .peers import Peers
+from .peers import Peer, Peers, read_seed
 from .trust.identity import SELF_ASSERTED_EXTENSION
 from .trust.resolve import Resolver
 from .trust.verify import Verifier
@@ -112,7 +112,7 @@ class Agent:
 def build(
     config: Config,
     *,
-    peers: Peers | None = None,
+    seed: list[Peer] | None = None,
     client: httpx.AsyncClient | None = None,
     resolver: Resolver | None = None,
 ) -> Agent:
@@ -120,7 +120,10 @@ def build(
     store = Store(config.db_path)
     registry = Registry(config.modules)
     store.migrate(registry.migrations())
-    peers = peers if peers is not None else Peers.load(config.peers_path)
+    peers = Peers(store, allow_http=config.allow_http_peers)
+    added = peers.seed(read_seed(config.peers_path) if seed is None else seed)
+    if added:
+        log.info("added from the seed file: %s", ", ".join(added))
 
     verifier = None
     if config.verify:

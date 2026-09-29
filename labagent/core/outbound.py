@@ -1,11 +1,13 @@
 # Copyright 2026 Choose Mission Ltd
 # Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE.
-"""Calling a peer: through your own gateway, to the address you configured.
+"""Calling a peer, at the address you configured for them and nothing else.
 
-The URL is the peer's `url` from peers.toml — your gateway's transit point for
-them — and nothing else. The message carries only your agent's unsigned
-self-description; your gateway's Identity element is what turns that into a
-signed presentation on the way out. This process never holds a gateway key.
+The URL is the peer's `url`, which only the owner sets (`peers.py`). The message
+carries only your agent's unsigned self-description. In mode `gateway` the URL
+is your gateway's transit point for the peer, and your gateway's Identity
+element turns that into a signed presentation on the way out. In mode `direct`
+it is the peer's own access point, and nothing signs it: they see you as
+self-asserted. Either way this process never holds a gateway key.
 """
 
 from __future__ import annotations

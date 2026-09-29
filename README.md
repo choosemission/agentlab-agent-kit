@@ -33,7 +33,7 @@ Every inbound message gets one of two labels before any module sees it.
 - **✔ gateway-verified**:
   - the message carried a presentation from the sender's gateway;
   - both of its proofs verified;
-  - the gateway is the one whose DID you pinned for that peer in `peers.toml`.
+  - the gateway is the one whose DID you pinned for that peer.
 - **⚠ self-asserted**: anything else. The reason is shown next to the item.
 
 Gateway-verified means *a caller whose gateway vouched for this agent identity
@@ -96,6 +96,9 @@ The same tools your coding agent sees over MCP (`ping`, `feed_post` and so on):
 
 ```
 labagent health | peers | audit
+labagent peers add <name> <url> [--mode gateway|direct] [--gateway-did d] [--api-key-env VAR]
+labagent peers update <name> [--url u] [--mode m] [--gateway-did d]   labagent peers pin <name> <did>
+labagent peers accept <name> <action> ask|auto|deny                   labagent peers remove <name>
 labagent approvals [--all]        labagent approve <id> | deny <id>
 labagent outbox [--flush]
 labagent ping <peer>

@@ -24,6 +24,7 @@ from ..core.approvals import APPROVED, DENIED
 from ..core.capability import Arg, Context, refuse
 from ..core.registry import Registry
 from ..core.untrusted import quoted
+from ..peers import DIRECT, GATEWAY, POLICIES, Peer, PeersError
 
 _JSON_TYPES = {str: "string", int: "integer", bool: "boolean"}
 
@@ -69,6 +70,53 @@ class Tool:
         return arguments
 
 
+_PEER_NAME = Arg("name", "the peer's name, which is permanent")
+_URL_HELP = (
+    f"mode {GATEWAY}: your own gateway's transit point for this peer; "
+    f"mode {DIRECT}: the peer's own access point. https:// only"
+)
+_PEER_FIELDS = (
+    Arg("mode", f"{GATEWAY} (they see you as gateway-verified) or {DIRECT} (self-asserted)", required=False, option=True),
+    Arg("gateway_did", "their gateway's DID, exchanged out of band; '' to unpin", required=False, option=True),
+    Arg(
+        "api_key_env",
+        "the environment variable holding the credential the url wants; never the value",
+        required=False,
+        option=True,
+    ),
+    Arg(
+        "claimed_name",
+        "the name their agent calls itself; used only for self-asserted messages",
+        required=False,
+        option=True,
+    ),
+    Arg("accept_self_asserted", "act on their messages even when only self-asserted", required=False, kind=bool),
+)
+
+#: The peer tools, `peers_<verb>`, as (help, arguments). The CLI builds
+#: `labagent peers <verb>` from the same table.
+PEER_COMMANDS: dict[str, tuple[str, tuple[Arg, ...]]] = {
+    "add": (
+        "Add a peer: somebody else's agent yours may call. The only way an address to call gets in.",
+        (_PEER_NAME, Arg("url", _URL_HELP), *_PEER_FIELDS),
+    ),
+    "update": (
+        "Change a peer's address, mode, pin or settings. Takes effect on the next message.",
+        (_PEER_NAME, Arg("url", _URL_HELP, required=False, option=True), *_PEER_FIELDS),
+    ),
+    "pin": (
+        "Pin a peer's gateway DID, as a self-asserted ping's reason printed it. Their verified "
+        "messages are labelled gateway-verified from then on.",
+        (_PEER_NAME, Arg("gateway_did", "the DID, exactly")),
+    ),
+    "accept": (
+        "Set how your agent treats one kind of request from a peer, e.g. feed.subscribe.",
+        (_PEER_NAME, Arg("action", "the skill, e.g. feed.subscribe"), Arg("policy", " | ".join(POLICIES))),
+    ),
+    "remove": ("Remove a peer. Messages still queued for them fail.", (_PEER_NAME,)),
+}
+
+
 def owner_tools(ctx: Context, registry: Registry) -> dict[str, Tool]:
     async def health() -> dict[str, Any]:
         return {
@@ -82,6 +130,34 @@ def owner_tools(ctx: Context, registry: Registry) -> dict[str, Tool]:
 
     async def peers() -> dict[str, Any]:
         return {"ok": True, "peers": [p.public() for p in ctx.peers.all()]}
+
+    def changed(action: Callable[[], Peer | bool], **extra: Any) -> dict[str, Any]:
+        try:
+            outcome = action()
+        except PeersError as error:
+            return refuse(str(error))
+        if isinstance(outcome, Peer):
+            return {"ok": True, "peer": outcome.public(), **extra}
+        return {"ok": outcome, **extra} if outcome else refuse("no such peer")
+
+    async def peers_add(name: str, url: str, **fields: Any) -> dict[str, Any]:
+        fields = {k: v for k, v in fields.items() if v is not None}
+        return changed(lambda: ctx.peers.add(Peer(name=name, url=url, **fields)))
+
+    async def peers_update(name: str, **fields: Any) -> dict[str, Any]:
+        return changed(lambda: ctx.peers.update(name, **{k: v for k, v in fields.items() if v is not None}))
+
+    async def peers_pin(name: str, gateway_did: str) -> dict[str, Any]:
+        return changed(lambda: ctx.peers.update(name, gateway_did=gateway_did))
+
+    async def peers_accept(name: str, action: str, policy: str) -> dict[str, Any]:
+        peer = ctx.peers.get(name)
+        if peer is None:
+            return refuse(f"no peer called {name!r}")
+        return changed(lambda: ctx.peers.update(name, accept={**peer.accept, action: policy}))
+
+    async def peers_remove(name: str) -> dict[str, Any]:
+        return changed(lambda: ctx.peers.remove(name), removed=name)
 
     async def approvals(status: str = "pending") -> dict[str, Any]:
         items = ctx.approvals.list(None if status == "all" else status)
@@ -114,6 +190,12 @@ def owner_tools(ctx: Context, registry: Registry) -> dict[str, Tool]:
     tools = [
         Tool("health", "Is the agent up, and what is waiting for you.", (), health),
         Tool("peers", "The agents yours knows, and how each is reached.", (), peers),
+        *(
+            Tool(f"peers_{verb}", help, args, run)
+            for (verb, (help, args)), run in zip(
+                PEER_COMMANDS.items(), (peers_add, peers_update, peers_pin, peers_accept, peers_remove)
+            )
+        ),
         Tool("approvals", "What is waiting for your decision.", (status,), approvals),
         Tool("approve", "Approve a queued item. This commits you.", item, decide(APPROVED)),
         Tool("deny", "Deny a queued item.", item, decide(DENIED)),

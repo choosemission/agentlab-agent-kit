@@ -20,7 +20,7 @@ import pytest
 from harness.pretend_gateway import create_gateway_app
 from labagent.app import Agent, build
 from labagent.config import Config
-from labagent.peers import Peer, Peers
+from labagent.peers import Peer
 from labagent.trust.resolve import Resolver
 from labagent.trust.testing import TestGateway, fetcher_for
 
@@ -82,10 +82,11 @@ class Lab:
         assert "error" not in answer, answer
         return answer["result"]["structuredContent"]
 
-    def restart(self, name: str, **peer_overrides: Any) -> Agent:
-        """Rebuild an agent from the same database file, as a process restart would."""
+    def restart(self, name: str) -> Agent:
+        """Rebuild an agent from the same database file, as a process restart would.
+        No seed: the peers it knows are the ones in its database."""
         old: Agent = getattr(self, name)
-        agent = make_agent(old.ctx.config, old.ctx.peers, self)
+        agent = make_agent(old.ctx.config, [], self)
         setattr(self, name, agent)
         self.network.apps[f"{name}.test"] = agent.public_app
         return agent
@@ -101,17 +102,18 @@ def config(name: str, key: str, tmp: Path) -> Config:
         allow_anonymous=False,
         db_path=str(tmp / f"{name}.sqlite3"),
         peers_path=str(tmp / "unused.toml"),
+        allow_http_peers=True,
     )
 
 
-def make_agent(cfg: Config, peers: Peers, lab_or_net: Any) -> Agent:
+def make_agent(cfg: Config, seed: list[Peer], lab_or_net: Any) -> Agent:
     if isinstance(lab_or_net, Lab):
         network, gateways = lab_or_net.network, (lab_or_net.alice_gw, lab_or_net.bob_gw)
     else:
         network, gateways = lab_or_net["network"], lab_or_net["gateways"]
     return build(
         cfg,
-        peers=peers,
+        seed=seed,
         client=httpx.AsyncClient(transport=network, timeout=10),
         resolver=Resolver(fetcher=fetcher_for(*gateways)),
     )
@@ -149,12 +151,12 @@ def make_lab(tmp_path: Path):
 
         alice = make_agent(
             config("alice", ALICE_KEY, tmp_path),
-            Peers(alice_peers if alice_peers is not None else [peer("bob", bob_gw)]),
+            alice_peers if alice_peers is not None else [peer("bob", bob_gw)],
             ctx,
         )
         bob = make_agent(
             config("bob", BOB_KEY, tmp_path),
-            Peers(bob_peers if bob_peers is not None else [peer("alice", alice_gw)]),
+            bob_peers if bob_peers is not None else [peer("alice", alice_gw)],
             ctx,
         )
         gw_client = httpx.AsyncClient(transport=network, timeout=10)

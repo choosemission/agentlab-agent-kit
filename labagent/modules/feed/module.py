@@ -11,8 +11,8 @@ hop; a pulled reply would rest on response-leg signing, which is unproven there.
 
 1. Bob's owner: `feed subscribe alice`. Bob's agent records the request and
    sends `feed.subscribe` to Alice's.
-2. Alice's agent applies her policy for Bob (`accept."feed.subscribe"` in
-   peers.toml): `ask` (default) queues it for Alice to approve, `auto` accepts,
+2. Alice's agent applies her policy for Bob (`accept."feed.subscribe"` on
+   the peer): `ask` (default) queues it for Alice to approve, `auto` accepts,
    `deny` refuses. On approval it sends `feed.subscribed` back.
 3. Alice's owner: `feed post "…"`. The outbox delivers `feed.deliver` to every
    active subscriber, retrying until each acknowledges.
@@ -200,7 +200,7 @@ class FeedModule(Capability):
     def owner_commands(self) -> list[OwnerCommand]:
         async def subscribe(ctx: Context, peer: str) -> dict[str, Any]:
             if ctx.peers.get(peer) is None:
-                return refuse(f"no peer called {peer!r} in peers.toml")
+                return refuse(f"no peer called {peer!r}")
             ctx.store.execute(
                 "INSERT INTO feed_subscriptions (peer, status, created_at) VALUES (?, 'requested', ?) "
                 "ON CONFLICT(peer) DO UPDATE SET status=CASE WHEN status='active' THEN 'active' ELSE 'requested' END",

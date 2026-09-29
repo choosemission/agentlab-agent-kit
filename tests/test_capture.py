@@ -22,7 +22,7 @@ from .test_ping import ping
 
 
 def capturing_bob(lab, directory: Path):
-    bob = make_agent(replace(lab.bob.ctx.config, capture_dir=str(directory)), lab.bob.ctx.peers, lab)
+    bob = make_agent(replace(lab.bob.ctx.config, capture_dir=str(directory)), [], lab)
     lab.bob = bob
     lab.network.apps["bob.test"] = bob.public_app
     return bob

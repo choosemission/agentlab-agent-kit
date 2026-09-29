@@ -12,7 +12,7 @@ against, and what it does not.
 | Counterparty text steers the owner's coding agent | The owner MCP server is read by a language model, so other people's words reach one. Every such result returns them quoted with `│`, labelled with who sent them and how it was verified, and the server's instructions say they are data. Tools that commit the owner need an explicit call, which the instructions say to confirm with the owner. This reduces the risk; it cannot remove it. |
 | A peer claims to be another peer | Attribution uses the issuer of a verified presentation, compared with the DID you pinned. A name in the payload is not enough. |
 | A forged or edited presentation | Both proofs are verified. Any edit to a signed field fails. |
-| A peer makes the agent call somewhere new (SSRF, relaying) | Outbound addresses come only from `peers.toml`. No payload carries a callback. |
+| A peer makes the agent call somewhere new (SSRF, relaying) | Outbound addresses come only from the owner's peer table (owner tools, or the `peers.toml` seed), and only `https://`. No payload carries a callback. |
 | Prompt injection in counterparty text | Text is length-capped and stripped of control and bidi characters. It is shown quoted and is never an input to a decision. Modules decide on validated fields. |
 | A peer floods the feed | Deliveries are accepted only from peers you subscribed to, at most 30 a minute per peer. |
 | Duplicate or replayed deliveries | The A2A message id is deduplicated, and so are module ids (`item_id`). |

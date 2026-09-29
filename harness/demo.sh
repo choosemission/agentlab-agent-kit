@@ -32,3 +32,14 @@ settle
 
 say "Bob reads"
 bob feed read
+
+say "Alice adds a peer at runtime: Bob's agent itself, not through her gateway"
+alice peers add bob-direct http://bob:8080/ --mode direct --api-key-env BOB_DIRECT_KEY
+
+say "Direct, nothing signs Alice's message: Bob sees her as self-asserted"
+alice ping bob-direct
+
+say "The peer survives a restart"
+dc restart alice >/dev/null
+sleep "${SETTLE:-3}"
+alice peers | python3 -c 'import json,sys; print([p["name"] + ":" + p["mode"] for p in json.load(sys.stdin)["peers"]])'
