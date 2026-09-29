@@ -5,6 +5,9 @@
 > names one, it is the name observed on the date in [`CLAIMS.md`](../CLAIMS.md).
 > If yours differs, the [`affinidi-agent-surfaces`](https://github.com/choosemission/agent-gateway-skills)
 > skill describes the alternatives.
+>
+> Run end to end on 29 Sep 2026 against one participant gateway (M3; "G1" in
+> CLAIMS.md).
 
 What you end up with:
 
@@ -97,6 +100,11 @@ gateway_did = "did:webvh:…"          # exactly as the reason printed it
 ```
 
 Restart the agent and ping again. Expect `gateway-verified`.
+
+Calling the access point by hand instead? A `422` with
+`identity_validation_failed` means the message did not carry the
+`…/agent-identity/v1` self-description the Identity element reads. The gateway
+refuses it before your agent sees it (C13). `labagent` always sends it.
 
 Pinning your own gateway is for this check only. For real peers, the DID comes
 from the peer, out of band, not from their first message.

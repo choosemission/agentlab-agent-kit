@@ -3,9 +3,9 @@
 > [!WARNING]
 > **Experimental.** This is early, under-tested code for the Agent Lab. The
 > gateway behaviour it relies on is listed, dated and sourced in
-> [`CLAIMS.md`](./CLAIMS.md). Most of it was measured by the Lab and has not yet
-> been re-measured with this toolkit. Verify against your own gateway, and open
-> an issue when something is wrong.
+> [`CLAIMS.md`](./CLAIMS.md). Hosting behind one real gateway was re-measured
+> with this toolkit on 29 Sep 2026 (M3); the rest was measured by the Lab.
+> Verify against your own gateway, and open an issue when something is wrong.
 >
 > Not affiliated with, endorsed by, or supported by Affinidi.
 
@@ -74,10 +74,10 @@ Without Docker, run the suite, which drives the same two-agent topology in-proce
 
 ## Run your own
 
-> **Not yet proven against a live Agent Gateway.** The stand-in gateway proves
-> the verifier and the labels. Hosting behind a real gateway (M3) and a
-> participant-to-participant hop (M4) are next. Until then, treat these steps as
-> the intended shape, not a tested runbook.
+> **Proven behind one live Agent Gateway (M3, 29 Sep 2026)**: a caller through
+> that gateway was labelled gateway-verified. A participant-to-participant hop
+> (M4) is not yet measured, so a label on a message from somebody else's gateway
+> rests on the Lab's measurements, not this toolkit's.
 
 [`deploy/DEPLOY.md`](./deploy/DEPLOY.md) is the runbook: the agent and a
 Cloudflare tunnel in Docker, the surface to build on your gateway, a call to
@@ -117,7 +117,7 @@ Its commands then appear in the CLI.
 | | |
 |---|---|
 | M0–M2 ✅ | Skeleton, core, `ping`, `feed`, the harness |
-| M3 | Hosting behind one real gateway: a live presentation verifies, and the tunnel and admin port behave |
+| M3 ✅ | Hosting behind one real gateway: a live presentation verifies, and the tunnel and admin port behave |
 | M4 | Measure a participant-to-participant hop, and confirm or revise the label rule |
 | M5 | `scheduling` with a fake or ICS calendar. Free intervals only cross the boundary; deterministic, never LLM-decided |
 | Later | Google Calendar; discovery through the Lab directory; a personal digest over the feed |
