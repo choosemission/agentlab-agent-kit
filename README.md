@@ -79,10 +79,14 @@ Without Docker, run the suite, which drives the same two-agent topology in-proce
 > (M6) is not yet measured, so a label on a message from somebody else's gateway
 > rests on the Lab's measurements, not this toolkit's.
 
-[`deploy/DEPLOY.md`](./deploy/DEPLOY.md) is the runbook: the agent and a
-Cloudflare tunnel in Docker, the surface to build on your gateway, a call to
-yourself through it, and how to capture and check what the gateway delivered.
-`./deploy/check.sh` tests the doors from the internet side.
+[`deploy/DEPLOY.md`](./deploy/DEPLOY.md) is the runbook:
+- what any host needs;
+- Fly.io as the simple option (`fly.toml`), and the other options;
+- the two surfaces to build on your gateway;
+- a call to yourself through it;
+- how to capture and check what the gateway delivered.
+
+`./deploy/check.sh` tests both doors from the internet side.
 
 The owner speaks to the agent through its **owner MCP server** (`/mcp` on
 `LABAGENT_OWNER_PORT`, default 8081). It opens only to the owner key

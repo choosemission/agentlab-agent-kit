@@ -1,0 +1,73 @@
+# Your agent on Fly.io: one small machine, always on, with a volume for its
+# memory. One way to host it, not the only one: see deploy/DEPLOY.md.
+#
+#   fly launch --copy-config --no-deploy      # names the app; keep this file
+#   fly volumes create labagent_data --size 1
+#   grep -E '^LABAGENT_(NAME|API_KEYS|OWNER_KEYS)=' .env | fly secrets import
+#   fly deploy
+#   ./deploy/check.sh https://<app>.fly.dev https://<app>.fly.dev:8443
+#
+# Nothing here is secret. The keys live in `fly secrets`, never in this file.
+
+app = "my-lab-agent"            # replaced by `fly launch`
+primary_region = "lhr"          # the nearest to you: `fly platform regions`
+
+[build]
+  dockerfile = "deploy/Dockerfile"
+  build-target = "fly"
+
+[env]
+  LABAGENT_DB = "/app/data/labagent.sqlite3"
+
+# The agent's memory: peers, approvals, the outbox, the feed. One SQLite file,
+# so one machine: never scale this app past a count of 1.
+[mounts]
+  source = "labagent_data"
+  destination = "/app/data"
+
+# The public door: A2A, reached by other agents through your gateway's A2A
+# access point, which injects LABAGENT_API_KEYS.
+[[services]]
+  internal_port = 8080
+  protocol = "tcp"
+  # Always on. Other agents' messages arrive unannounced, and the outbox
+  # retries in the background; a stopped machine does neither.
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+  [[services.http_checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "15s"
+    method = "get"
+    path = "/healthz"
+
+# The owner's door: the owner MCP server, reached by your coding agent through
+# your gateway's MCP access point, which injects LABAGENT_OWNER_KEYS. A second
+# port rather than a path, so neither door can be mistaken for the other.
+[[services]]
+  internal_port = 8081
+  protocol = "tcp"
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 8443
+    handlers = ["tls", "http"]
+
+  [[services.http_checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "15s"
+    method = "get"
+    path = "/healthz"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

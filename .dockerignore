@@ -1,0 +1,15 @@
+# The build context goes to whoever builds the image: Docker locally, or Fly's
+# remote builder. Keep secrets and local state out of it.
+.env
+.env.*
+!.env.example
+peers.toml
+data/
+*.sqlite3
+captures/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.git/

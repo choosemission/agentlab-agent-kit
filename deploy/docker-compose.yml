@@ -8,8 +8,8 @@
 # The tunnel is a Cloudflare *quick* tunnel: no account, and a new
 # `*.trycloudflare.com` hostname every time the container starts. Each new
 # hostname has to be put into your surface's external target again. That is
-# fine for a measurement and wrong for anything you leave running: see
-# DEPLOY.md, "Keeping it up".
+# fine for a first look and wrong for anything you leave running: see
+# DEPLOY.md §2 for hosting that stays up.
 name: labagent
 
 services:

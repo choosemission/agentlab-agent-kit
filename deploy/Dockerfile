@@ -1,5 +1,6 @@
-# One image, two targets:
+# One image, three targets:
 #   agent    — what you deploy behind your gateway
+#   fly      — the agent, for Fly.io, whose volumes arrive owned by root
 #   harness  — the agent plus the stand-in gateway, for harness/docker-compose.yml
 FROM python:3.14-slim AS agent
 WORKDIR /app
@@ -14,6 +15,12 @@ ENV LABAGENT_DB=/app/data/labagent.sqlite3 LABAGENT_PEERS=/app/peers.toml
 # the first of LABAGENT_OWNER_KEYS.
 EXPOSE 8080 8081
 HEALTHCHECK CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz')"
+CMD ["python", "-m", "labagent", "serve"]
+
+FROM agent AS fly
+USER root
+COPY deploy/fly-entrypoint.sh /usr/local/bin/fly-entrypoint.sh
+ENTRYPOINT ["/usr/local/bin/fly-entrypoint.sh"]
 CMD ["python", "-m", "labagent", "serve"]
 
 FROM agent AS harness
