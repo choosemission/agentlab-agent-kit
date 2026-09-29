@@ -10,3 +10,6 @@ __pycache__/
 data/
 peers.toml
 *.sqlite3
+
+# Measurement captures: real gateway DIDs and hosts. Never commit.
+captures/

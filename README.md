@@ -79,19 +79,10 @@ Without Docker, run the suite, which drives the same two-agent topology in-proce
 > participant-to-participant hop (M4) are next. Until then, treat these steps as
 > the intended shape, not a tested runbook.
 
-1. `cp .env.example .env`. Set `LABAGENT_NAME` and `LABAGENT_API_KEYS`
-   (`openssl rand -hex 32`).
-2. `cp peers.example.toml peers.toml` and add the people you know. Each entry
-   needs your gateway's transit point for them, and the gateway DID they gave
-   you.
-3. Put the agent behind your gateway:
-   - An access point whose external target is this agent's public port, with
-     the key from step 1 injected on the last leg.
-   - An Identity element that marks `name`.
-   - Set `LABAGENT_PUBLIC_URL` to the access point's URL.
-4. `./run.sh serve`, or build `deploy/Dockerfile`.
-5. As the owner, run `./run.sh health`, `./run.sh ping <peer>` and
-   `./run.sh feed subscribe <peer>`.
+[`deploy/DEPLOY.md`](./deploy/DEPLOY.md) is the runbook: the agent and a
+Cloudflare tunnel in Docker, the surface to build on your gateway, a call to
+yourself through it, and how to capture and check what the gateway delivered.
+`./deploy/check.sh` tests the doors from the internet side.
 
 The owner API listens on 127.0.0.1 only. Never route it through the gateway.
 

@@ -12,10 +12,11 @@
     python -m labagent feed subscribe alice
     python -m labagent feed post "text" [--topic t]
     python -m labagent feed read [--verified-only]
+    python -m labagent verify captures/….json
 
 Module commands are built from each module's `owner_commands()`, so a new
 module's commands appear here without editing this file. Everything but `serve`
-talks to the owner API on loopback (LABAGENT_ADMIN_URL, default
+and `verify` talks to the owner API on loopback (LABAGENT_ADMIN_URL, default
 http://127.0.0.1:8081).
 """
 
@@ -90,6 +91,8 @@ def _parser() -> argparse.ArgumentParser:
     outbox = sub.add_parser("outbox", help="messages waiting to be delivered")
     outbox.add_argument("--flush", action="store_true", help="attempt delivery now")
     sub.add_parser("audit", help="recent inbound messages and how they were labelled")
+    verify = sub.add_parser("verify", help="check a captured request's gateway presentation (reads a file)")
+    verify.add_argument("file", help="a capture from LABAGENT_CAPTURE_DIR, a JSON-RPC request or a message")
 
     for module_name, factory in KNOWN.items():
         commands = factory().owner_commands()
@@ -127,6 +130,18 @@ def main(argv: list[str] | None = None) -> None:
 
         logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
         asyncio.run(serve(config_from_env()))
+        return
+
+    if args.command == "verify":
+        from ..config import _host_map
+        from ..trust.evidence import examine
+
+        with open(args.file, encoding="utf-8") as handle:
+            document = json.load(handle)
+        report = examine(document, host_map=_host_map(os.environ.get("LABAGENT_RESOLVE_HOSTS", "")))
+        print(json.dumps(report, indent=2, default=str))
+        if not report["verified"]:
+            sys.exit(1)
         return
 
     if args.command == "health":

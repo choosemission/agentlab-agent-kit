@@ -46,6 +46,10 @@ class Config:
     resolve_hosts: Mapping[str, str] = field(default_factory=dict)
     #: Seconds between outbox passes.
     outbox_interval: float = 2.0
+    #: Measurement only: write every request that gets past the key gate, as it
+    #: arrived, to one file each in this directory. Off unless set. See
+    #: `labagent/capture.py` and deploy/DEPLOY.md.
+    capture_dir: str | None = None
 
 
 def _host_map(raw: str) -> dict[str, str]:
@@ -87,4 +91,5 @@ def config_from_env(env: Mapping[str, str] | None = None) -> Config:
         strict_proof_purpose=env.get("LABAGENT_STRICT_PROOF_PURPOSE") == "true",
         resolve_hosts=_host_map(env.get("LABAGENT_RESOLVE_HOSTS", "")),
         outbox_interval=float(env.get("LABAGENT_OUTBOX_INTERVAL", "2")),
+        capture_dir=env.get("LABAGENT_CAPTURE_DIR") or None,
     )

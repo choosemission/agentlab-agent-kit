@@ -39,6 +39,7 @@ from starlette.routing import Route
 
 from . import __version__
 from .admin.api import create_admin_app
+from .capture import Capture
 from .config import Config
 from .core.approvals import Approvals
 from .core.capability import Context
@@ -149,7 +150,9 @@ def build(
         return JSONResponse({"status": "ok", "version": __version__})
 
     public.routes.append(Route("/healthz", health, methods=["GET"]))
-    return Agent(ctx, registry, ApiKeyGate(public, config), create_admin_app(ctx, registry, trust=admin_trust))
+    # Inside the gate, so only what your gateway let through is ever written.
+    inner = Capture(public, config.capture_dir) if config.capture_dir else public
+    return Agent(ctx, registry, ApiKeyGate(inner, config), create_admin_app(ctx, registry, trust=admin_trust))
 
 
 async def serve(config: Config) -> None:
