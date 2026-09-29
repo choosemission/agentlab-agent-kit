@@ -11,12 +11,12 @@ from .conftest import peer
 
 async def subscribed(lab) -> None:
     """Bob subscribes to Alice; Alice approves; the confirmation reaches Bob."""
-    await lab.owner(lab.bob, "POST", "/cmd/feed/subscribe", {"peer": "alice"})
+    await lab.owner(lab.bob, "feed_subscribe", {"peer": "alice"})
     await lab.flush(lab.bob)
-    pending = (await lab.owner(lab.alice, "GET", "/approvals"))["approvals"]
+    pending = (await lab.owner(lab.alice, "approvals"))["approvals"]
     assert [(a["kind"], a["peer"]) for a in pending] == [("subscribe", "bob")]
     assert "gateway-verified" in pending[0]["summary"]
-    decided = await lab.owner(lab.alice, "POST", f"/approvals/{pending[0]['id']}/approve")
+    decided = await lab.owner(lab.alice, "approve", {"id": pending[0]["id"]})
     assert decided["outcome"]["status"] == "active"
     await lab.flush(lab.alice)
 
@@ -26,14 +26,14 @@ def test_subscribe_post_read_with_labels(make_lab) -> None:
 
     async def go():
         await subscribed(lab)
-        subs = (await lab.owner(lab.bob, "POST", "/cmd/feed/subscriptions"))["subscriptions"]
+        subs = (await lab.owner(lab.bob, "feed_subscriptions"))["subscriptions"]
         assert [(s["peer"], s["status"]) for s in subs] == [("alice", "active")]
 
-        posted = await lab.owner(lab.alice, "POST", "/cmd/feed/post", {"text": "Rate limits moved to 50/s", "topic": "ops"})
+        posted = await lab.owner(lab.alice, "feed_post", {"text": "Rate limits moved to 50/s", "topic": "ops"})
         assert posted["queued_for"] == ["bob"]
         assert await lab.flush(lab.alice) == 1
 
-        items = (await lab.owner(lab.bob, "POST", "/cmd/feed/read", {}))["items"]
+        items = (await lab.owner(lab.bob, "feed_read", {}))["items"]
         assert len(items) == 1
         item = items[0]
         assert (item["peer"], item["body"], item["topic"]) == ("alice", "Rate limits moved to 50/s", "ops")
@@ -53,7 +53,7 @@ def test_an_unsubscribed_sender_is_refused(make_lab) -> None:
         assert await lab.flush(lab.alice) == 0
         row = lab.alice.ctx.outbox.list()[0]
         assert row["status"] == "failed" and "not subscribed" in row["last_error"]
-        assert (await lab.owner(lab.bob, "POST", "/cmd/feed/read", {}))["items"] == []
+        assert (await lab.owner(lab.bob, "feed_read", {}))["items"] == []
 
     asyncio.run(go())
 
@@ -62,9 +62,9 @@ def test_an_unverified_subscriber_is_refused_by_default(make_lab) -> None:
     lab = make_lab(bob_signs=False)
 
     async def go():
-        await lab.owner(lab.bob, "POST", "/cmd/feed/subscribe", {"peer": "alice"})
+        await lab.owner(lab.bob, "feed_subscribe", {"peer": "alice"})
         await lab.flush(lab.bob)
-        assert (await lab.owner(lab.alice, "GET", "/approvals"))["approvals"] == []
+        assert (await lab.owner(lab.alice, "approvals"))["approvals"] == []
         assert "cannot attribute" in lab.bob.ctx.outbox.list()[0]["last_error"]
 
     asyncio.run(go())
@@ -78,12 +78,12 @@ def test_self_asserted_items_are_stored_and_labelled_when_the_peer_allows_it(mak
 
     async def go():
         await subscribed(lab)
-        await lab.owner(lab.alice, "POST", "/cmd/feed/post", {"text": "unsigned but welcome"})
+        await lab.owner(lab.alice, "feed_post", {"text": "unsigned but welcome"})
         await lab.flush(lab.alice)
-        items = (await lab.owner(lab.bob, "POST", "/cmd/feed/read", {}))["items"]
+        items = (await lab.owner(lab.bob, "feed_read", {}))["items"]
         assert items[0]["label"] == "self-asserted"
         assert "no gateway presentation" in items[0]["reason"]
-        verified = (await lab.owner(lab.bob, "POST", "/cmd/feed/read", {"verified_only": True}))["items"]
+        verified = (await lab.owner(lab.bob, "feed_read", {"verified_only": True}))["items"]
         assert verified == []
 
     asyncio.run(go())
@@ -97,7 +97,7 @@ def test_the_outbox_retries_across_a_restart(make_lab) -> None:
     async def go():
         await subscribed(lab)
         lab.network.down.add("bob.test")
-        await lab.owner(lab.alice, "POST", "/cmd/feed/post", {"text": "while you were out"})
+        await lab.owner(lab.alice, "feed_post", {"text": "while you were out"})
         assert await lab.flush(lab.alice) == 0
         row = lab.alice.ctx.outbox.list("pending")[0]
         assert row["attempts"] == 1 and "unreachable" in row["last_error"]
@@ -108,7 +108,7 @@ def test_the_outbox_retries_across_a_restart(make_lab) -> None:
         assert await lab.flush(lab.alice) == 1
         assert await lab.flush(lab.alice) == 0  # nothing left to send
 
-        items = (await lab.owner(lab.bob, "POST", "/cmd/feed/read", {}))["items"]
+        items = (await lab.owner(lab.bob, "feed_read", {}))["items"]
         assert [i["body"] for i in items] == ["while you were out"]
 
     asyncio.run(go())
@@ -123,7 +123,7 @@ def test_a_redelivered_item_is_stored_once(make_lab) -> None:
         for _ in range(2):
             lab.alice.ctx.outbox.enqueue("bob", payload)
         assert await lab.flush(lab.alice) == 2
-        items = (await lab.owner(lab.bob, "POST", "/cmd/feed/read", {}))["items"]
+        items = (await lab.owner(lab.bob, "feed_read", {}))["items"]
         assert len(items) == 1
 
     asyncio.run(go())
@@ -137,7 +137,7 @@ def test_counterparty_text_is_cleaned(make_lab) -> None:
         sneaky = "safe‮ txet desrever\x07 " + "x" * 5000
         lab.alice.ctx.outbox.enqueue("bob", envelope.body("feed.deliver", item_id="s", body=sneaky))
         await lab.flush(lab.alice)
-        body = (await lab.owner(lab.bob, "POST", "/cmd/feed/read", {}))["items"][0]["body"]
+        body = (await lab.owner(lab.bob, "feed_read", {}))["items"][0]["body"]
         assert "‮" not in body and "\x07" not in body and len(body) <= 2000
 
     asyncio.run(go())
@@ -147,15 +147,15 @@ def test_a_denied_subscriber_is_told(make_lab) -> None:
     lab = make_lab()
 
     async def go():
-        await lab.owner(lab.bob, "POST", "/cmd/feed/subscribe", {"peer": "alice"})
+        await lab.owner(lab.bob, "feed_subscribe", {"peer": "alice"})
         await lab.flush(lab.bob)
-        approval = (await lab.owner(lab.alice, "GET", "/approvals"))["approvals"][0]
-        await lab.owner(lab.alice, "POST", f"/approvals/{approval['id']}/deny")
+        approval = (await lab.owner(lab.alice, "approvals"))["approvals"][0]
+        await lab.owner(lab.alice, "deny", {"id": approval["id"]})
         await lab.flush(lab.alice)
-        subs = (await lab.owner(lab.bob, "POST", "/cmd/feed/subscriptions"))["subscriptions"]
+        subs = (await lab.owner(lab.bob, "feed_subscriptions"))["subscriptions"]
         assert subs[0]["status"] == "declined"
         # And Alice's posts do not go to him.
-        posted = await lab.owner(lab.alice, "POST", "/cmd/feed/post", {"text": "hello"})
+        posted = await lab.owner(lab.alice, "feed_post", {"text": "hello"})
         assert posted["queued_for"] == []
 
     asyncio.run(go())

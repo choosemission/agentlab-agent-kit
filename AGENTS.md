@@ -28,7 +28,10 @@ then `down -v`.
   way in and `quoted` on the way out, and never into a decision. Negotiation
   logic is deterministic code, never an LLM.
 - **Ask the owner** before anything that commits them. Use the approval queue.
-- **Keep the owner API loopback-only**, and never route it through a gateway.
+- **The owner reaches the agent only through their own gateway's MCP access
+  point, with a key.** The owner port refuses anything without the owner key
+  that access point injects, and an inbound key never opens it. Anything that
+  commits the owner is still a tool call they confirm.
 - **Keep `a2a-sdk` at 0.3.x** (CLAIMS C5).
 - **Vendored trust code** (`labagent/trust/{resolve,verify,identity}.py`,
   `gate.py`) comes from affinidi-lab `servers/lab-coordinator`. Mark local

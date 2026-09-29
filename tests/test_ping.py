@@ -11,7 +11,7 @@ from .conftest import peer
 
 def ping(lab, frm: str, to: str) -> dict:
     agent = getattr(lab, frm)
-    return asyncio.run(lab.owner(agent, "POST", "/cmd/ping/ping", {"peer": to}))
+    return asyncio.run(lab.owner(agent, "ping", {"peer": to}))
 
 
 def test_alice_and_bob_see_each_other_as_gateway_verified(make_lab) -> None:
@@ -43,7 +43,7 @@ def test_a_wrong_pinned_did_is_self_asserted(make_lab) -> None:
 def test_every_inbound_message_is_audited(make_lab) -> None:
     lab = make_lab()
     ping(lab, "alice", "bob")
-    rows = asyncio.run(lab.owner(lab.bob, "GET", "/audit"))["audit"]
+    rows = asyncio.run(lab.owner(lab.bob, "audit"))["audit"]
     assert rows[0]["skill"] == "ping" and rows[0]["label"] == "gateway-verified" and rows[0]["peer"] == "alice"
 
 

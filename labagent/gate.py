@@ -9,17 +9,16 @@ should reach it, and it injects a key on the last leg; anything arriving without
 that key came round the gateway, and is refused. Closing that ungoverned path is
 the point of having a gateway at all.
 
-**The owner's door** is the admin API, and it opens only to loopback. It is on a
-different port, bound to 127.0.0.1, and refuses any connection that is not from
-loopback even if somebody binds it wider. Nothing about it is routed through the
-gateway: the gateway is for other people's agents, and this is you.
+**The owner's door** is the owner MCP server (`owner/mcp.py`), on its own port.
+It is reached through a *different* access point on the same gateway, which
+injects a *different* key: `LABAGENT_OWNER_KEYS`. The inbound key never opens
+it, so an agent that can reach you cannot act as you.
 """
 
 from __future__ import annotations
 
 import hashlib
 import hmac
-import ipaddress
 from typing import Any, Mapping
 
 from starlette.responses import JSONResponse
@@ -55,13 +54,15 @@ def presented_credential(headers: Mapping[str, str]) -> str | None:
     return None
 
 
-def accepts(config: Config, credential: str | None) -> bool:
-    if config.allow_anonymous and not config.api_keys:
+def accepts(config: Config, credential: str | None, keys: tuple[str, ...] | None = None) -> bool:
+    # labagent: `keys` names the key set, so one gate serves both doors.
+    keys = config.api_keys if keys is None else keys
+    if config.allow_anonymous and not keys:
         return True
     if credential is None:
         return False
     actual = _digest(credential)
-    return any(hmac.compare_digest(_digest(key), actual) for key in config.api_keys)
+    return any(hmac.compare_digest(_digest(key), actual) for key in keys)
 
 
 def is_exempt(path: str) -> bool:
@@ -72,9 +73,10 @@ class ApiKeyGate:
     """Pure ASGI, not `BaseHTTPMiddleware`: the A2A app streams SSE, and a
     middleware that buffered responses would hold those open."""
 
-    def __init__(self, app: Any, config: Config) -> None:
+    def __init__(self, app: Any, config: Config, *, keys: tuple[str, ...] | None = None) -> None:
         self._app = app
         self._config = config
+        self._keys = keys
 
     async def __call__(self, scope: dict[str, Any], receive: Any, send: Any) -> None:
         if scope["type"] != "http" or is_exempt(scope.get("path", "")):
@@ -82,7 +84,7 @@ class ApiKeyGate:
             return
         headers = {k.decode("latin-1").lower(): v.decode("latin-1") for k, v in scope.get("headers", [])}
         credential = presented_credential(headers)
-        if accepts(self._config, credential):
+        if accepts(self._config, credential, self._keys):
             await self._app(scope, receive, send)
             return
         if credential is None:
@@ -98,33 +100,3 @@ class ApiKeyGate:
             )
         await response(scope, receive, send)
 
-
-def is_loopback(host: str | None) -> bool:
-    if not host:
-        return False
-    try:
-        return ipaddress.ip_address(host).is_loopback
-    except ValueError:
-        # Starlette's TestClient reports "testclient"; nothing real does.
-        return False
-
-
-class LoopbackOnly:
-    """The owner's door. Refuses any peer that is not loopback, whatever the
-    bind address says — so a `0.0.0.0` typo is a refusal, not an exposure."""
-
-    def __init__(self, app: Any, *, trust: tuple[str, ...] = ()) -> None:
-        self._app = app
-        self._trust = trust  # tests only: pseudo-hosts to treat as loopback
-
-    async def __call__(self, scope: dict[str, Any], receive: Any, send: Any) -> None:
-        if scope["type"] == "http":
-            client = scope.get("client")
-            host = client[0] if client else None
-            if not (is_loopback(host) or host in self._trust):
-                response = JSONResponse(
-                    {"error": "forbidden", "message": "The owner API answers loopback only."}, status_code=403
-                )
-                await response(scope, receive, send)
-                return
-        await self._app(scope, receive, send)

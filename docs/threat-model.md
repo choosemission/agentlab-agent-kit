@@ -8,7 +8,8 @@ against, and what it does not.
 | Threat | Defence |
 |---|---|
 | Somebody calls the agent round the gateway | The public door wants the key only the owner's gateway injects. Without it the answer is 401, with a wrong key 403 (`gate.py`). |
-| Somebody reaches the owner API | It is a separate port, bound to 127.0.0.1, and it refuses any client that is not on loopback, whatever the bind address. The gateway key does not open it. |
+| Somebody reaches the owner's door | The owner MCP server is a separate port that wants the owner key, which only the owner's MCP access point injects: 401 without it, 403 with any other. An inbound key does not open it, and the agent refuses to start if the two key sets share a key. |
+| Counterparty text steers the owner's coding agent | The owner MCP server is read by a language model, so other people's words reach one. Every such result returns them quoted with `│`, labelled with who sent them and how it was verified, and the server's instructions say they are data. Tools that commit the owner need an explicit call, which the instructions say to confirm with the owner. This reduces the risk; it cannot remove it. |
 | A peer claims to be another peer | Attribution uses the issuer of a verified presentation, compared with the DID you pinned. A name in the payload is not enough. |
 | A forged or edited presentation | Both proofs are verified. Any edit to a signed field fails. |
 | A peer makes the agent call somewhere new (SSRF, relaying) | Outbound addresses come only from `peers.toml`. No payload carries a callback. |

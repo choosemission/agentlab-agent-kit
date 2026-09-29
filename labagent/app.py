@@ -8,8 +8,8 @@
 
 | Listener | Who reaches it | What opens it |
 | --- | --- | --- |
-| public A2A (`LABAGENT_PORT`) | other agents, through YOUR gateway | the key your gateway injects |
-| owner API (`LABAGENT_ADMIN_PORT`) | you, via `labagent` CLI | being on loopback |
+| public A2A (`LABAGENT_PORT`) | other agents, through YOUR gateway | the key your gateway injects there |
+| owner MCP (`LABAGENT_OWNER_PORT`) | you: your coding agent, or the `labagent` CLI | the owner key, injected by a separate access point |
 
 The outbox worker delivers queued messages to peers in the background.
 """
@@ -38,7 +38,6 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 
 from . import __version__
-from .admin.api import create_admin_app
 from .capture import Capture
 from .config import Config
 from .core.approvals import Approvals
@@ -49,6 +48,7 @@ from .core.outbox import Outbox
 from .core.registry import Registry
 from .core.store import Store
 from .gate import ApiKeyGate
+from .owner.mcp import create_owner_app
 from .peers import Peers
 from .trust.identity import SELF_ASSERTED_EXTENSION
 from .trust.resolve import Resolver
@@ -106,7 +106,7 @@ class Agent:
     ctx: Context
     registry: Registry
     public_app: Any
-    admin_app: Any
+    owner_app: Any
 
 
 def build(
@@ -115,7 +115,6 @@ def build(
     peers: Peers | None = None,
     client: httpx.AsyncClient | None = None,
     resolver: Resolver | None = None,
-    admin_trust: tuple[str, ...] = (),
 ) -> Agent:
     """Everything but the listeners. Tests call this and drive both apps in-process."""
     store = Store(config.db_path)
@@ -152,7 +151,7 @@ def build(
     public.routes.append(Route("/healthz", health, methods=["GET"]))
     # Inside the gate, so only what your gateway let through is ever written.
     inner = Capture(public, config.capture_dir) if config.capture_dir else public
-    return Agent(ctx, registry, ApiKeyGate(inner, config), create_admin_app(ctx, registry, trust=admin_trust))
+    return Agent(ctx, registry, ApiKeyGate(inner, config), create_owner_app(ctx, registry, config))
 
 
 async def serve(config: Config) -> None:
@@ -160,24 +159,23 @@ async def serve(config: Config) -> None:
 
     agent = build(config)
     log.info(
-        "listening: public A2A on 0.0.0.0:%d, owner API on %s:%d, modules %s, signatures %s",
+        "listening: public A2A on 0.0.0.0:%d, owner MCP on 0.0.0.0:%d/mcp, modules %s, signatures %s",
         config.port,
-        config.admin_host,
-        config.admin_port,
+        config.owner_port,
         ",".join(config.modules),
         "verified" if config.verify else "NOT VERIFIED — nothing will be labelled gateway-verified",
     )
     if not config.api_keys:
         log.warning("serving without inbound authentication (LABAGENT_ALLOW_ANONYMOUS). Never behind a real gateway.")
+    if not config.owner_keys:
+        log.warning("serving the owner MCP without a key (LABAGENT_ALLOW_ANONYMOUS). Anyone who reaches it is you.")
     if config.resolve_hosts:
         log.warning("DID resolution is redirected for %s — harness only", ", ".join(config.resolve_hosts))
 
     public = uvicorn.Server(uvicorn.Config(agent.public_app, host="0.0.0.0", port=config.port, log_level="info"))
-    admin = uvicorn.Server(
-        uvicorn.Config(agent.admin_app, host=config.admin_host, port=config.admin_port, log_level="warning")
-    )
+    owner = uvicorn.Server(uvicorn.Config(agent.owner_app, host="0.0.0.0", port=config.owner_port, log_level="warning"))
     worker = asyncio.create_task(agent.ctx.outbox.run_forever(config.outbox_interval))
     try:
-        await asyncio.gather(public.serve(), admin.serve())
+        await asyncio.gather(public.serve(), owner.serve())
     finally:
         worker.cancel()

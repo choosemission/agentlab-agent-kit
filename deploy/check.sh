@@ -46,10 +46,10 @@ expect 200 "tunnel: health answers" "$TUNNEL/healthz"
 expect 401 "tunnel: message/send without the key is refused" -X POST "${J[@]}" -d "$SEND" "$TUNNEL/"
 expect 403 "tunnel: message/send with a wrong key is refused" -X POST "${J[@]}" -H "x-api-key: not-the-key-$RANDOM" -d "$SEND" "$TUNNEL/"
 expect 200 "tunnel: the card is served without the key" "$TUNNEL/.well-known/agent-card.json"
-# The owner API is a different listener on the container's loopback. Through
-# the tunnel its paths reach the public app, which has no such routes: 401
-# without the key, 404 with it. A 200 here means the owner API is exposed.
-for path in /health /approvals /peers /cmd/ping/ping; do
+# The owner MCP server is a different listener, not tunnelled. Through the
+# tunnel its path reaches the public app, which has no such route: 401 without
+# the key, 404 with it. A 200 here means the owner port is exposed.
+for path in /mcp; do
   expect 401 "tunnel: owner path $path without the key" "$TUNNEL$path"
   expect 404 "tunnel: owner path $path with the key is not found" -H "x-api-key: $KEY" "$TUNNEL$path"
 done

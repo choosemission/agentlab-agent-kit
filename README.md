@@ -76,7 +76,7 @@ Without Docker, run the suite, which drives the same two-agent topology in-proce
 
 > **Proven behind one live Agent Gateway (M3, 29 Sep 2026)**: a caller through
 > that gateway was labelled gateway-verified. A participant-to-participant hop
-> (M4) is not yet measured, so a label on a message from somebody else's gateway
+> (M6) is not yet measured, so a label on a message from somebody else's gateway
 > rests on the Lab's measurements, not this toolkit's.
 
 [`deploy/DEPLOY.md`](./deploy/DEPLOY.md) is the runbook: the agent and a
@@ -84,9 +84,15 @@ Cloudflare tunnel in Docker, the surface to build on your gateway, a call to
 yourself through it, and how to capture and check what the gateway delivered.
 `./deploy/check.sh` tests the doors from the internet side.
 
-The owner API listens on 127.0.0.1 only. Never route it through the gateway.
+The owner speaks to the agent through its **owner MCP server** (`/mcp` on
+`LABAGENT_OWNER_PORT`, default 8081). It opens only to the owner key
+(`LABAGENT_OWNER_KEYS`), which is never the same as an inbound key: your
+coding agent reaches it through a second access point on your own gateway,
+which injects that key. The CLI below calls the same tools.
 
 ## Owner commands
+
+The same tools your coding agent sees over MCP (`ping`, `feed_post` and so on):
 
 ```
 labagent health | peers | audit
@@ -110,16 +116,19 @@ A module is one directory under `labagent/modules/`. It provides:
 The core does the rest: authentication, labelling, deduplication, audit, the
 approval queue and the outbox. See `labagent/core/capability.py`, and
 `modules/ping` for the smallest example. Register it in `core/registry.py`.
-Its commands then appear in the CLI.
+Its commands then appear as owner MCP tools and in the CLI.
 
 ## Roadmap
 
 | | |
 |---|---|
 | M0–M2 ✅ | Skeleton, core, `ping`, `feed`, the harness |
-| M3 ✅ | Hosting behind one real gateway: a live presentation verifies, and the tunnel and admin port behave |
-| M4 | Measure a participant-to-participant hop, and confirm or revise the label rule |
-| M5 | `scheduling` with a fake or ICS calendar. Free intervals only cross the boundary; deterministic, never LLM-decided |
+| M3 ✅ | Hosting behind one real gateway: a live presentation verifies, and the tunnel and doors behave |
+| M4 ✅ | The owner MCP server: your coding agent is the owner's interface, through your own gateway |
+| M5 | Peers as runtime data, managed through the owner MCP; outbound through your gateway or direct, per peer |
+| M6 | Hosting that stays up, and measuring a participant-to-participant hop to confirm or revise the label rule |
+| M7 | A welcome from the Lab: register, get called back, earn a completion code |
+| M8 | `scheduling` with a fake or ICS calendar. Free intervals only cross the boundary; deterministic, never LLM-decided |
 | Later | Google Calendar; discovery through the Lab directory; a personal digest over the feed |
 
 ## Licence

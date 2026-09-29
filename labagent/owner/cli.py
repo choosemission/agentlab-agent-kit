@@ -16,8 +16,10 @@
 
 Module commands are built from each module's `owner_commands()`, so a new
 module's commands appear here without editing this file. Everything but `serve`
-and `verify` talks to the owner API on loopback (LABAGENT_ADMIN_URL, default
-http://127.0.0.1:8081).
+and `verify` is a call to the agent's owner MCP server, the same tools your
+coding agent sees. It reads LABAGENT_OWNER_URL (default
+http://127.0.0.1:8081/mcp) and LABAGENT_OWNER_KEY (default: the first of
+LABAGENT_OWNER_KEYS, so `docker compose exec` works inside the container).
 """
 
 from __future__ import annotations
@@ -33,46 +35,41 @@ from typing import Any
 import httpx
 
 from ..core.registry import KNOWN
-from ..core.untrusted import quoted
+from .tools import render
 
 
-def _admin_url() -> str:
-    return os.environ.get("LABAGENT_ADMIN_URL") or f"http://127.0.0.1:{os.environ.get('LABAGENT_ADMIN_PORT', '8081')}"
+def _owner_url() -> str:
+    return os.environ.get("LABAGENT_OWNER_URL") or f"http://127.0.0.1:{os.environ.get('LABAGENT_OWNER_PORT', '8081')}/mcp"
 
 
-def _call(method: str, path: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
+def _owner_key() -> str | None:
+    key = os.environ.get("LABAGENT_OWNER_KEY") or os.environ.get("LABAGENT_OWNER_KEYS", "").split(",")[0]
+    return key.strip() or None
+
+
+def _call(tool: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
+    """One `tools/call` to the owner MCP server. Returns the tool's result."""
+    key = _owner_key()
+    headers = {"x-api-key": key} if key else {}
+    message = {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": tool, "arguments": arguments or {}}}
     try:
-        response = httpx.request(method, _admin_url() + path, json=body, timeout=30)
+        response = httpx.post(_owner_url(), json=message, headers=headers, timeout=30)
     except httpx.HTTPError as error:
-        sys.exit(f"cannot reach the owner API at {_admin_url()}: {error}. Is the agent running?")
+        sys.exit(f"cannot reach the owner MCP server at {_owner_url()}: {error}. Is the agent running?")
     try:
-        return response.json()
+        answer = response.json()
     except ValueError:
-        sys.exit(f"owner API answered HTTP {response.status_code}: {response.text[:200]}")
-
-
-def _render_items(items: list[dict[str, Any]]) -> str:
-    """Feed items for a person: the label first, the words quoted as somebody else's."""
-    if not items:
-        return "(nothing yet)"
-    blocks = []
-    for item in items:
-        mark = "✔ gateway-verified" if item.get("label") == "gateway-verified" else "⚠ self-asserted"
-        head = f"{mark} · from {item.get('peer')} · {item.get('created_at') or ''}"
-        if item.get("topic"):
-            head += f" · #{item['topic']}"
-        lines = [head, quoted(item.get("body") or "")]
-        if item.get("label") != "gateway-verified":
-            lines.append(f"  why: {item.get('reason')}")
-        blocks.append("\n".join(lines))
-    return "\n\n".join(blocks)
+        sys.exit(f"owner MCP server answered HTTP {response.status_code}: {response.text[:200]}")
+    if response.status_code in (401, 403):
+        # The key gate, not MCP: its answer is plain JSON.
+        sys.exit(f"the owner MCP server refused the key ({response.status_code}). Set LABAGENT_OWNER_KEY.")
+    if "error" in answer:
+        sys.exit(answer["error"].get("message", "the owner MCP server returned an error"))
+    return answer["result"]["structuredContent"]
 
 
 def _print(result: dict[str, Any]) -> None:
-    if isinstance(result.get("items"), list):
-        print(_render_items(result["items"]))
-    else:
-        print(json.dumps(result, indent=2, default=str))
+    print(render(result))
     if result.get("ok") is False:
         sys.exit(1)
 
@@ -101,12 +98,12 @@ def _parser() -> argparse.ArgumentParser:
         # A module with a single command whose name is the module (ping) is
         # promoted to the top level.
         if len(commands) == 1 and commands[0].name == module_name:
-            targets = [(sub, commands[0], f"{module_name}:{commands[0].name}")]
+            targets = [(sub, commands[0], module_name)]
         else:
             group = sub.add_parser(module_name, help=f"{module_name} commands").add_subparsers(
                 dest="module_command", required=True
             )
-            targets = [(group, c, f"{module_name}:{c.name}") for c in commands]
+            targets = [(group, c, f"{module_name}_{c.name}") for c in commands]
         for container, cmd, dispatch in targets:
             p = container.add_parser(cmd.name, help=cmd.help)
             p.set_defaults(dispatch=dispatch)
@@ -144,20 +141,15 @@ def main(argv: list[str] | None = None) -> None:
             sys.exit(1)
         return
 
-    if args.command == "health":
-        return _print(_call("GET", "/health"))
-    if args.command == "peers":
-        return _print(_call("GET", "/peers"))
+    if args.command in ("health", "peers", "audit"):
+        return _print(_call(args.command))
     if args.command == "approvals":
-        return _print(_call("GET", "/approvals" + ("?status=all" if args.all else "")))
+        return _print(_call("approvals", {"status": "all"} if args.all else {}))
     if args.command in ("approve", "deny"):
-        return _print(_call("POST", f"/approvals/{args.id}/{args.command}"))
+        return _print(_call(args.command, {"id": args.id}))
     if args.command == "outbox":
-        return _print(_call("POST", "/outbox/run") if args.flush else _call("GET", "/outbox"))
-    if args.command == "audit":
-        return _print(_call("GET", "/audit"))
+        return _print(_call("outbox_flush" if args.flush else "outbox"))
 
-    module, command = args.dispatch.split(":")
+    tool = args.dispatch
     skip = {"command", "module_command", "dispatch"}
-    body = {k: v for k, v in vars(args).items() if k not in skip and v is not None}
-    _print(_call("POST", f"/cmd/{module}/{command}", body))
+    _print(_call(tool, {k: v for k, v in vars(args).items() if k not in skip and v is not None}))

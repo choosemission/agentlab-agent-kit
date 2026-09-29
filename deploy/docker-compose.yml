@@ -26,14 +26,14 @@ services:
       # Written only while LABAGENT_CAPTURE_DIR=/app/captures is set in .env.
       - ../captures:/app/captures
     # No `ports:`. Nothing on this machine or the network reaches the agent
-    # except through the tunnel, and the owner API stays on the container's
-    # loopback: `docker compose -f deploy/docker-compose.yml exec agent python -m labagent …`.
+    # except through the tunnel. The owner MCP server (:8081, owner key) is not
+    # tunnelled yet: `docker compose -f deploy/docker-compose.yml exec agent python -m labagent …`.
     restart: unless-stopped
 
   tunnel:
     image: cloudflare/cloudflared:2025.9.1
-    # The public A2A port only. The owner API is on 127.0.0.1 inside the agent
-    # container and cannot be named from here.
+    # The public A2A port only. The owner MCP port gets its own route and
+    # access point when the agent is hosted to stay up (see DEPLOY.md).
     command: ["tunnel", "--no-autoupdate", "--url", "http://agent:8080"]
     depends_on: [agent]
     restart: unless-stopped

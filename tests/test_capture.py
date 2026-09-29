@@ -11,7 +11,7 @@ import json
 from dataclasses import replace
 from pathlib import Path
 
-from labagent.admin.cli import main as cli
+from labagent.owner.cli import main as cli
 from labagent.trust.evidence import examine
 from labagent.trust.resolve import Resolver
 from labagent.trust.testing import fetcher_for

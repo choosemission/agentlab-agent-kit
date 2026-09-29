@@ -20,6 +20,7 @@ services:
       LABAGENT_NAME: "Alice's agent"
       LABAGENT_PUBLIC_URL: "http://alice-gw.test/a2a/"
       LABAGENT_API_KEYS: "harness-alice-inbound-key-0000000000000000000000000000"
+      LABAGENT_OWNER_KEYS: "harness-alice-owner-key-000000000000000000000000000000"
     volumes: ["./peers/alice.toml:/app/peers.toml:ro", "alice-data:/app/data"]
 
   bob:
@@ -29,6 +30,7 @@ services:
       LABAGENT_NAME: "Bob's agent"
       LABAGENT_PUBLIC_URL: "http://bob-gw.test/a2a/"
       LABAGENT_API_KEYS: "harness-bob-inbound-key-00000000000000000000000000000000"
+      LABAGENT_OWNER_KEYS: "harness-bob-owner-key-00000000000000000000000000000000"
     volumes: ["./peers/bob.toml:/app/peers.toml:ro", "bob-data:/app/data"]
 
   alice-gw:

@@ -15,7 +15,7 @@ What you end up with:
 another agent ─► your access point ─► [Identity element signs the caller]
                         │                   [your key injected]
                         ▼
-                 cloudflared tunnel ─► agent :8080     owner API :8081 (container loopback)
+                 cloudflared tunnel ─► agent :8080     owner MCP :8081 (not tunnelled yet)
 ```
 
 The gateway is the only thing meant to reach the agent. The key it injects is
@@ -26,6 +26,7 @@ everything but the agent card and the health check.
 
 ```bash
 cp .env.example .env              # set LABAGENT_NAME; LABAGENT_API_KEYS=$(openssl rand -hex 32)
+                                  # and a different LABAGENT_OWNER_KEYS=$(openssl rand -hex 32)
 touch peers.toml                  # must exist, even empty
 docker compose -f deploy/docker-compose.yml up --build -d
 ./deploy/check.sh                 # every line PASS

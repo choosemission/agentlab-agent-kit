@@ -1,3 +1,3 @@
-from .admin.cli import main
+from .owner.cli import main
 
 main()

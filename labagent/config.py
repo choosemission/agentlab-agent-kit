@@ -30,9 +30,11 @@ class Config:
     #: Accepted inbound keys: the credential your gateway injects on the last leg.
     api_keys: tuple[str, ...]
     allow_anonymous: bool
+    #: Accepted owner keys: the credential your gateway injects on the owner
+    #: MCP access point. Never the same as an inbound key.
+    owner_keys: tuple[str, ...] = ()
     port: int = 8080
-    admin_host: str = "127.0.0.1"
-    admin_port: int = 8081
+    owner_port: int = 8081
     db_path: str = "data/labagent.sqlite3"
     peers_path: str = "peers.toml"
     modules: tuple[str, ...] = ("ping", "feed")
@@ -61,18 +63,33 @@ def _host_map(raw: str) -> dict[str, str]:
     return out
 
 
+def _keys(env: Mapping[str, str], name: str) -> tuple[str, ...]:
+    return tuple(k.strip() for k in env.get(name, "").split(",") if k.strip())
+
+
 def config_from_env(env: Mapping[str, str] | None = None) -> Config:
     env = os.environ if env is None else env
 
-    keys = tuple(k.strip() for k in env.get("LABAGENT_API_KEYS", "").split(",") if k.strip())
+    keys = _keys(env, "LABAGENT_API_KEYS")
+    owner_keys = _keys(env, "LABAGENT_OWNER_KEYS")
     allow_anonymous = env.get("LABAGENT_ALLOW_ANONYMOUS") == "true"
     if not keys and not allow_anonymous:
         raise ConfigurationError(
             "No inbound authentication configured. Set LABAGENT_API_KEYS (the key your gateway "
             "injects), or LABAGENT_ALLOW_ANONYMOUS=true for local development."
         )
-    if any(len(k) < 32 for k in keys):
+    if not owner_keys and not allow_anonymous:
+        raise ConfigurationError(
+            "No owner authentication configured. Set LABAGENT_OWNER_KEYS (the key your gateway "
+            "injects on the owner MCP access point), or LABAGENT_ALLOW_ANONYMOUS=true for local development."
+        )
+    if any(len(k) < 32 for k in keys + owner_keys):
         raise ConfigurationError("An API key is shorter than 32 characters. Generate one with: openssl rand -hex 32")
+    if set(keys) & set(owner_keys):
+        raise ConfigurationError(
+            "An owner key is also an inbound key, so anybody who can reach your agent could act as you. "
+            "Generate a separate one with: openssl rand -hex 32"
+        )
 
     port = int(env.get("LABAGENT_PORT", "8080"))
     return Config(
@@ -81,9 +98,9 @@ def config_from_env(env: Mapping[str, str] | None = None) -> Config:
         public_url=env.get("LABAGENT_PUBLIC_URL") or f"http://localhost:{port}",
         api_keys=keys,
         allow_anonymous=allow_anonymous,
+        owner_keys=owner_keys,
         port=port,
-        admin_host=env.get("LABAGENT_ADMIN_HOST", "127.0.0.1"),
-        admin_port=int(env.get("LABAGENT_ADMIN_PORT", "8081")),
+        owner_port=int(env.get("LABAGENT_OWNER_PORT", "8081")),
         db_path=env.get("LABAGENT_DB", "data/labagent.sqlite3"),
         peers_path=env.get("LABAGENT_PEERS", "peers.toml"),
         modules=tuple(m.strip() for m in env.get("LABAGENT_MODULES", "ping,feed").split(",") if m.strip()),

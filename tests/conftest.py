@@ -26,6 +26,9 @@ from labagent.trust.testing import TestGateway, fetcher_for
 
 ALICE_KEY = "a" * 64
 BOB_KEY = "b" * 64
+ALICE_OWNER_KEY = "o" * 32 + "a" * 32
+BOB_OWNER_KEY = "o" * 32 + "b" * 32
+OWNER_KEYS = {"alice": ALICE_OWNER_KEY, "bob": BOB_OWNER_KEY}
 
 
 class Network(httpx.AsyncBaseTransport):
@@ -63,10 +66,21 @@ class Lab:
             total += await agent.ctx.outbox.run_once()
         return total
 
-    async def owner(self, agent: Agent, method: str, path: str, body: dict | None = None) -> dict:
-        transport = httpx.ASGITransport(app=agent.admin_app, client=("127.0.0.1", 50000))
+    async def rpc(self, agent: Agent, method: str, params: dict | None = None, *, key: str | None = "owner") -> httpx.Response:
+        """One JSON-RPC message to an agent's owner MCP server, with its owner key by default."""
+        if key == "owner":
+            key = agent.ctx.config.owner_keys[0]
+        transport = httpx.ASGITransport(app=agent.owner_app, client=("203.0.113.9", 50000))
+        headers = {"x-api-key": key} if key else {}
+        message = {"jsonrpc": "2.0", "id": 1, "method": method, "params": params or {}}
         async with httpx.AsyncClient(transport=transport, base_url="http://owner") as c:
-            return (await c.request(method, path, json=body)).json()
+            return await c.post("/mcp", json=message, headers=headers)
+
+    async def owner(self, agent: Agent, tool: str, arguments: dict | None = None) -> dict:
+        """Call an owner tool as the owner's coding agent would, and return its result."""
+        answer = (await self.rpc(agent, "tools/call", {"name": tool, "arguments": arguments or {}})).json()
+        assert "error" not in answer, answer
+        return answer["result"]["structuredContent"]
 
     def restart(self, name: str, **peer_overrides: Any) -> Agent:
         """Rebuild an agent from the same database file, as a process restart would."""
@@ -83,6 +97,7 @@ def config(name: str, key: str, tmp: Path) -> Config:
         role="participant representative",
         public_url=f"https://{name}-gw.test/a2a/",
         api_keys=(key,),
+        owner_keys=(OWNER_KEYS[name],),
         allow_anonymous=False,
         db_path=str(tmp / f"{name}.sqlite3"),
         peers_path=str(tmp / "unused.toml"),
@@ -160,4 +175,4 @@ def make_lab(tmp_path: Path):
     return _make
 
 
-__all__ = ["Lab", "peer", "config", "replace", "ALICE_KEY", "BOB_KEY"]
+__all__ = ["Lab", "peer", "config", "replace", "ALICE_KEY", "BOB_KEY", "ALICE_OWNER_KEY", "BOB_OWNER_KEY"]

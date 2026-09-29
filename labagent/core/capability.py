@@ -10,7 +10,7 @@ a feed, negotiate a meeting. It contributes four things:
 - **tables**, prefixed with its name, in the shared SQLite store;
 - **a handler** for inbound messages from peers, which returns a structured
   reply (an acknowledgement, never a commitment: see trust/provenance.py);
-- **owner commands**, which the admin API and the CLI expose to the person the
+- **owner commands**, which the owner MCP server and the CLI expose to the person the
   agent represents, and an `on_decision` hook for items it queued for them.
 
 The core does the rest: authentication, provenance, dedupe, audit, the approval
