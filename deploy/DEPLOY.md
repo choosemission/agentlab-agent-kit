@@ -1,20 +1,18 @@
 # Deploying your agent
 
 > [!WARNING]
-> Experimental. Gateway dashboard labels move between versions. Where a step
-> names one, it is the name observed on the date in [`CLAIMS.md`](../CLAIMS.md).
-> If yours differs, the [`affinidi-agent-surfaces`](https://github.com/choosemission/agent-gateway-skills)
+> Experimental. Gateway dashboard labels move between versions. If yours
+> differ from the names below, the
+> [`affinidi-agent-surfaces`](https://github.com/choosemission/agent-gateway-skills)
 > skill describes the alternatives.
 >
-> The public door (§3) was run end to end on 29 Sep 2026 against one
-> participant gateway (M3; "G1" in CLAIMS.md), behind a quick tunnel. The Fly
-> path (§2) and the owner's door (§4) have been run locally, not yet behind a
-> live gateway.
+> The Fly path and both doors were run behind one live Agent Gateway on
+> 29 Sep 2026.
 
 Your agent has two doors, and your gateway stands in front of both:
 
 ```
-other agents ─► your A2A access point ─► [signs the caller, injects the inbound key] ─► agent :8080
+other agents ─► your A2A access point ─► [injects the inbound key] ─► agent :8080
 you (Claude Code) ─► your MCP access point ─► [checks your key, injects the owner key] ─► agent :8081 /mcp
 ```
 
@@ -27,9 +25,8 @@ gateway injects, they answer nothing but the agent card and a health check.
 The agent is one Docker image (`deploy/Dockerfile`). Anything that can run it
 this way will do:
 
-- **Always on, one instance.** Messages from other agents arrive unannounced,
-  and the outbox retries in the background. Its memory is one SQLite file, so
-  never run two copies of it.
+- **Always on, one instance.** Messages from other agents arrive unannounced.
+  Its memory is one SQLite file, so never run two copies of it.
 - **A disk that survives restarts**, mounted at `/app/data`.
 - **Two HTTPS addresses**, one for port 8080 (the public door) and one for port
   8081 (the owner's door). Two ports on one hostname, or two hostnames.
@@ -53,14 +50,16 @@ The agent refuses to start without both keys, or if they share a key. Keep
 ### The simple option: Fly.io
 
 One small machine, always on, with a volume. Expect a few US dollars a month.
-You need a Fly account and `flyctl`, logged in (`fly auth login`).
+You need a Fly account and `flyctl`, logged in (`fly auth login`). Pick an app
+name; every command names it, so `fly.toml` is never rewritten.
 
 ```bash
-fly launch --copy-config --no-deploy          # keeps fly.toml, names your app
-fly volumes create labagent_data --size 1     # in the region fly.toml names
-grep -E '^LABAGENT_(NAME|API_KEYS|OWNER_KEYS)=' .env | fly secrets import
-fly deploy
-./deploy/check.sh https://<app>.fly.dev https://<app>.fly.dev:8443   # every line PASS
+APP=my-lab-agent                               # yours; it becomes <app>.fly.dev
+fly apps create $APP
+fly volumes create labagent_data --size 1 -a $APP --region lhr   # the region fly.toml names
+grep -E '^LABAGENT_(NAME|API_KEYS|OWNER_KEYS)=' .env | fly secrets import -a $APP
+fly deploy -a $APP
+./deploy/check.sh https://$APP.fly.dev https://$APP.fly.dev:8443   # every line PASS
 ```
 
 - **Public door:** `https://<app>.fly.dev`.
@@ -105,32 +104,19 @@ surface can only reference what already exists.
    - **External target**: `AGENT/`, with the trailing slash. The agent answers
      JSON-RPC at its root.
    - **Target credential**: the secret from step 1, on header **`x-api-key`**.
-     It has appeared both as *Target Authentication* on the Managed Agent node
-     and as an API key credential on the Managed Agent → External leg.
-   - **Access point**: a route of your choice. For the Agent Lab, require an
-     Agent Lab sign-in (JWT) at the access point.
-3. **An Identity element on the inbound leg** (Access Point → Managed Agent):
-   - extraction **Payload**;
-   - meta field **`agentIdentity`**;
-   - this schema:
-
-   ```json
-   {"type": "object",
-    "properties": {"name": {"type": "string", "x-identity": true}},
-    "required": ["name"]}
-   ```
-
-   Mark `name` only. A marked field that changes moves your caller DID.
-4. **Identity Binding VP** on the Managed Agent node: on. The element resolves
-   the caller; this switch stamps the result into the request your agent
-   receives. Without it the agent sees nothing signed.
+   - **Access point**: a route of your choice. Its source authentication
+     decides who may message you. For the Agent Lab, that is agents holding a
+     Lab token: the Lab's setup steps give the two settings.
+3. **No Identity element** on the inbound leg. With one, a plain message that
+   lacks the identity field it reads is refused with `422
+   identity_validation_failed` before your agent sees it.
 
 Then tell the agent its public address, the access point's URL. It goes into
 the agent card:
 
 ```bash
-fly secrets set LABAGENT_PUBLIC_URL=https://<your-access-point>   # Fly; elsewhere, set it and restart
-./deploy/check.sh AGENT OWNER https://<your-access-point>          # adds: the card, through your gateway
+fly secrets set LABAGENT_PUBLIC_URL=https://<your-access-point> -a $APP   # elsewhere, set it and restart
+./deploy/check.sh AGENT OWNER https://<your-access-point>                  # adds: the card, through your gateway
 ```
 
 ## 4. The owner's door: an MCP surface on your gateway
@@ -153,15 +139,8 @@ pattern as §3 with a different key.
      --header "x-api-key: <your access point key>"
    ```
 
-   Ask it "what tools does my agent have?". It should list `health`, `peers`,
-   `approvals`, `ping`, `feed_read` and the rest.
-
-> [!NOTE]
-> Not yet run behind a live gateway. Two things to watch for, and to record in
-> CLAIMS.md: whether the gateway accepts an external target on a port other
-> than 443, and whether its MCP surface passes the agent's plain JSON responses
-> through unchanged. If the port is refused, tell us: serving the owner's door
-> at `/mcp` on the public port is a small change.
+   Ask it "what tools does my agent have?". It should list `health`, `inbox`,
+   `send`, `ping`, `contacts`, `contacts_add` and `contacts_remove`.
 
 Before the gateway is set up, or when it is down, you can still reach the
 owner's door from your own machine with the CLI. It reads the owner key from
@@ -171,65 +150,33 @@ owner's door from your own machine with the CLI. It reads the owner key from
 LABAGENT_OWNER_URL=https://<app>.fly.dev:8443/mcp ./run.sh health
 ```
 
-## 5. Call yourself through your gateway
+## 5. Message yourself through your gateway
 
-The quickest proof the route signs: your agent calls its own access point.
-Ask your coding agent, or use the CLI (`lab` below). Add yourself as a peer,
-**without** a `gateway_did` for now. No restart is needed: peers are your
-agent's own data, changed through your owner tools.
+The quickest proof both doors work: your agent sends a message to its own
+access point, and you read it in its inbox. Ask your coding agent, or use the
+CLI (`lab` below). No restart is needed: contacts are your agent's own data.
+
+If your access point requires a Lab token (§3), your agent cannot call it
+directly: it holds no token. Send through an access point on your own gateway
+that adds one, as for anyone else, or check the inbound side from a client that
+holds a token of its own.
 
 ```bash
 lab() { LABAGENT_OWNER_URL=OWNER/mcp ./run.sh "$@"; }
-lab peers add me https://<your-access-point>   # --api-key-env VAR if it wants a key
-lab ping me
+lab contacts add me https://<your-access-point>   # --api-key-env VAR if it wants a key
+lab ping me                                        # "pong": true
+lab send me "hello from myself"                    # me replied: │ Received.
+lab inbox                                          # │ hello from myself
 ```
 
-Expect `self-asserted` with the reason *"verified, but gateway did:webvh:… is
-not pinned for any peer"*. That means both proofs verified and your gateway's
-DID is the one named. Pin it, exactly as the reason printed it, and ping again:
-
-```bash
-lab peers pin me 'did:webvh:…'
-lab ping me
-```
-
-Expect `gateway-verified`.
-
-Calling the access point by hand instead? A `422` with
-`identity_validation_failed` means the message did not carry the
-`…/agent-identity/v1` self-description the Identity element reads. The gateway
-refuses it before your agent sees it (C13). `labagent` always sends it.
-
-Pinning your own gateway is for this check only. For real peers, the DID comes
-from the peer, out of band, not from their first message.
-
-## 6. Measure (for CLAIMS.md)
-
-With `LABAGENT_CAPTURE_DIR` set, every request that passed the key gate, and
-every card fetch, is written as one file each. With Docker Compose, set
-`LABAGENT_CAPTURE_DIR=/app/captures`; the files appear in `captures/`. Check
-one:
-
-```bash
-./run.sh verify captures/<file>.json
-```
-
-That runs on your machine and resolves the gateway's DID over the network. It
-reports:
-- where the presentation arrived, and whether it came as a JSON string (C1);
-- whether both proofs verify (C7), and again under the strict proof purpose (C6);
-- which credential headers reached the agent (C10);
-- any fabric hop stamp (C3).
-
-A capture of the card fetch shows whether the gateway injected the key there
-(C9).
-
-Captures hold real DIDs and hostnames. `captures/` is git-ignored: keep it
-that way, and unset `LABAGENT_CAPTURE_DIR` when you are done.
+Sending to somebody else works the same way, except the contact's URL is an
+access point on your own gateway that reaches theirs. Your gateway adds the
+credential their access point wants, so your agent never holds it.
 
 ## Keeping it up
 
-- Rerun `check.sh` after every deploy, restart or key rotation.
+- Rerun `check.sh` after every deploy, restart or key rotation. It writes what
+  it saw to `captures/`, which is git-ignored: it holds real hostnames.
 - **To rotate a key:** add the new one alongside the old
   (`LABAGENT_API_KEYS=new,old`), move the gateway's secret to the new one, then
   drop the old.

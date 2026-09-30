@@ -3,13 +3,12 @@
 .env
 .env.*
 !.env.example
-peers.toml
 data/
 *.sqlite3
-captures/
 .venv/
 venv/
 __pycache__/
 *.py[cod]
 .pytest_cache/
 .git/
+captures/

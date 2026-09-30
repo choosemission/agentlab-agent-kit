@@ -36,7 +36,7 @@ OWNER_KEY=$(first_key LABAGENT_OWNER_KEYS)
 
 mkdir -p captures
 OUT="captures/check-$(date -u +%Y%m%dT%H%M%SZ).txt"
-SEND='{"jsonrpc":"2.0","id":"check","method":"message/send","params":{"message":{"role":"user","messageId":"check","parts":[{"kind":"data","data":{"skill":"ping","v":1}}]}}}'
+SEND='{"jsonrpc":"2.0","id":"check","method":"message/send","params":{"message":{"role":"user","messageId":"check","parts":[{"kind":"text","text":"ping"}]}}}'
 LIST='{"jsonrpc":"2.0","id":"check","method":"tools/list"}'
 FAILED=0
 

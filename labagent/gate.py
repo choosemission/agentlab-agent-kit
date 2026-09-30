@@ -55,7 +55,7 @@ def presented_credential(headers: Mapping[str, str]) -> str | None:
 
 
 def accepts(config: Config, credential: str | None, keys: tuple[str, ...] | None = None) -> bool:
-    # labagent: `keys` names the key set, so one gate serves both doors.
+    # `keys` names the key set, so one gate serves both doors.
     keys = config.api_keys if keys is None else keys
     if config.allow_anonymous and not keys:
         return True

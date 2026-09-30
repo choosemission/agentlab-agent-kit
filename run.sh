@@ -3,7 +3,7 @@
 #
 #   ./run.sh serve                 # run the agent (reads .env)
 #   ./run.sh test [pytest args]    # the suite
-#   ./run.sh feed read             # anything else goes to the owner CLI
+#   ./run.sh inbox                 # anything else goes to the owner CLI
 #
 set -euo pipefail
 cd "$(dirname "$0")"

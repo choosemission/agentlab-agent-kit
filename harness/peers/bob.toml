@@ -1,8 +1,0 @@
-# Bob's view of Alice. Harness only.
-[peers.alice]
-url = "http://bob-gw:8000/to/alice"
-gateway_did = "did:webvh:QmTest2mhBhyF8Ff4oi8ZwxDVccij6uS74zYqf:alice-gw.test"
-claimed_name = "Alice's agent"
-
-[peers.alice.accept]
-"feed.subscribe" = "ask"

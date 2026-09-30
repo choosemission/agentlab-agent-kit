@@ -9,12 +9,11 @@ Portions are derived from Affinidi's affinidi-labs-tgw-get-started repository
 Apache License, Version 2.0, at upstream commit
 64babfc3ef27a3b1fb73ec9c25246b032b5708c4, at second hand: by way of MISSION's
 own `servers/lab-coordinator` in the Agent Lab repository. The derived portion
-is the agent card's shape and the identity extension URIs, in
-`labagent/app.py`, whose header names both steps of that chain.
+is the agent card's shape, in `labagent/app.py`, whose header names both steps
+of that chain.
 
-`labagent/trust/{resolve,verify,identity}.py` and `labagent/gate.py` are
-vendored from MISSION's `servers/lab-coordinator`; each file's header says so,
-and marks what was changed here.
+`labagent/gate.py` is adapted from MISSION's `servers/lab-coordinator`; its
+header says so.
 
 Affinidi, Affinidi Trust Fabric and Agent Gateway are trademarks of their
 respective owner. No endorsement or affiliation is claimed, and no trademark

@@ -11,48 +11,50 @@ import httpx
 import pytest
 
 from labagent.config import ConfigurationError, config_from_env
-from labagent.core import envelope
+from labagent.send import reply_text, request
 
 from .conftest import ALICE_KEY, ALICE_OWNER_KEY
 
+TOOLS = {"health", "inbox", "send", "ping", "contacts", "contacts_add", "contacts_remove"}
 
-def call(app, method: str, path: str, *, client=("127.0.0.1", 1), **kw) -> httpx.Response:
+
+def call(app, method: str, path: str, **kw) -> httpx.Response:
     async def go():
-        transport = httpx.ASGITransport(app=app, client=client)
+        transport = httpx.ASGITransport(app=app, client=("127.0.0.1", 1))
         async with httpx.AsyncClient(transport=transport, base_url="http://agent") as c:
             return await c.request(method, path, **kw)
 
     return asyncio.run(go())
 
 
-SEND = envelope.request(envelope.body("ping"), {"name": "anyone"})
+SEND = request("hello")
 
 
 class TestPublicDoor:
-    def test_message_send_without_the_key_is_401(self, make_lab) -> None:
-        response = call(make_lab().alice.public_app, "POST", "/", json=SEND)
+    def test_message_send_without_the_key_is_401(self, lab) -> None:
+        response = call(lab.alice.public_app, "POST", "/", json=SEND)
         assert response.status_code == 401
         assert "gateway" in response.json()["guidance"]
+        assert lab.alice.inbox.count() == 0
 
-    def test_a_wrong_key_is_403(self, make_lab) -> None:
-        response = call(make_lab().alice.public_app, "POST", "/", json=SEND, headers={"x-api-key": "z" * 64})
+    def test_a_wrong_key_is_403(self, lab) -> None:
+        response = call(lab.alice.public_app, "POST", "/", json=SEND, headers={"x-api-key": "z" * 64})
         assert response.status_code == 403
 
-    def test_the_right_key_is_answered(self, make_lab) -> None:
-        response = call(make_lab().alice.public_app, "POST", "/", json=SEND, headers={"x-api-key": ALICE_KEY})
+    def test_the_right_key_is_stored_and_answered(self, lab) -> None:
+        response = call(lab.alice.public_app, "POST", "/", json=SEND, headers={"x-api-key": ALICE_KEY})
         assert response.status_code == 200
-        reply = envelope.reply_payload(response.json())
-        # Reached directly, not through a gateway: answered, and labelled so.
-        assert reply["seen_as"] == "self-asserted"
+        assert reply_text(response.json()) == "Received."
+        assert [m["text"] for m in lab.alice.inbox.list()] == ["hello"]
 
-    def test_the_card_is_served_without_the_key(self, make_lab) -> None:
-        card = call(make_lab().alice.public_app, "GET", "/.well-known/agent-card.json").json()
+    def test_the_card_is_served_without_the_key(self, lab) -> None:
+        card = call(lab.alice.public_app, "GET", "/.well-known/agent-card.json").json()
         assert card["name"] == "Alice's agent"
-        assert {s["id"] for s in card["skills"]} >= {"ping", "feed.subscribe", "feed.deliver"}
+        assert {s["id"] for s in card["skills"]} == {"message", "ping"}
         assert card["url"] == "https://alice-gw.test/a2a/"
 
-    def test_health_needs_no_key(self, make_lab) -> None:
-        assert call(make_lab().alice.public_app, "GET", "/healthz").status_code == 200
+    def test_health_needs_no_key(self, lab) -> None:
+        assert call(lab.alice.public_app, "GET", "/healthz").status_code == 200
 
 
 class TestOwnerDoor:
@@ -62,31 +64,29 @@ class TestOwnerDoor:
     def rpc(self, lab, key):
         return asyncio.run(lab.rpc(lab.alice, "tools/list", key=key))
 
-    def test_the_owner_key_is_answered(self, make_lab) -> None:
-        response = self.rpc(make_lab(), "owner")
+    def test_the_owner_key_lists_exactly_the_owner_tools(self, lab) -> None:
+        response = self.rpc(lab, "owner")
         assert response.status_code == 200
-        assert "approve" in {t["name"] for t in response.json()["result"]["tools"]}
+        assert {t["name"] for t in response.json()["result"]["tools"]} == TOOLS
 
-    def test_no_key_is_401(self, make_lab) -> None:
-        assert self.rpc(make_lab(), None).status_code == 401
+    def test_no_key_is_401(self, lab) -> None:
+        assert self.rpc(lab, None).status_code == 401
 
-    def test_a_wrong_key_is_403(self, make_lab) -> None:
-        assert self.rpc(make_lab(), "z" * 64).status_code == 403
+    def test_a_wrong_key_is_403(self, lab) -> None:
+        assert self.rpc(lab, "z" * 64).status_code == 403
 
-    def test_the_inbound_key_does_not_open_it(self, make_lab) -> None:
+    def test_the_inbound_key_does_not_open_it(self, lab) -> None:
         """An agent that can reach you cannot act as you."""
-        assert self.rpc(make_lab(), ALICE_KEY).status_code == 403
+        assert self.rpc(lab, ALICE_KEY).status_code == 403
 
-    def test_the_owner_key_does_not_open_the_public_door(self, make_lab) -> None:
-        lab = make_lab()
+    def test_the_owner_key_does_not_open_the_public_door(self, lab) -> None:
         response = call(lab.alice.public_app, "POST", "/", json=SEND, headers={"x-api-key": ALICE_OWNER_KEY})
         assert response.status_code == 403
 
-    def test_over_a_real_socket(self, make_lab) -> None:
+    def test_over_a_real_socket(self, lab) -> None:
         """The CLI's actual path: uvicorn, a real port, the key in a header."""
         import uvicorn
 
-        lab = make_lab()
         with socket.socket() as s:
             s.bind(("127.0.0.1", 0))
             port = s.getsockname()[1]

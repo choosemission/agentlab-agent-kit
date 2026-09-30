@@ -4,9 +4,8 @@
 
 Every string a counterparty sends passes through `clean` before it is stored,
 and through `quoted` before it is shown. Nothing in this toolkit makes a
-decision on counterparty text: modules decide on structured fields, and text is
-carried for a person to read. When an LLM arrives (a digest over the feed), it
-gets this text quoted, and no tools.
+decision on counterparty text: it is carried for a person to read. When an LLM
+arrives, it gets this text quoted, and the owner decides what it may do.
 """
 
 from __future__ import annotations

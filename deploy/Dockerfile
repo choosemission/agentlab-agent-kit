@@ -1,7 +1,6 @@
-# One image, three targets:
+# One image, two targets:
 #   agent    — what you deploy behind your gateway
 #   fly      — the agent, for Fly.io, whose volumes arrive owned by root
-#   harness  — the agent plus the stand-in gateway, for harness/docker-compose.yml
 FROM python:3.14-slim AS agent
 WORKDIR /app
 COPY requirements.txt .
@@ -9,7 +8,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY labagent ./labagent
 RUN useradd --create-home --uid 10001 agent && mkdir -p /app/data && chown agent /app/data
 USER agent
-ENV LABAGENT_DB=/app/data/labagent.sqlite3 LABAGENT_PEERS=/app/peers.toml
+ENV LABAGENT_DB=/app/data/labagent.sqlite3
 # The public A2A port, and the owner MCP port. Each wants its own key. Locally,
 # `docker compose exec <service> python -m labagent …` calls the owner MCP with
 # the first of LABAGENT_OWNER_KEYS.
@@ -22,6 +21,3 @@ USER root
 COPY deploy/fly-entrypoint.sh /usr/local/bin/fly-entrypoint.sh
 ENTRYPOINT ["/usr/local/bin/fly-entrypoint.sh"]
 CMD ["python", "-m", "labagent", "serve"]
-
-FROM agent AS harness
-COPY --chown=agent harness ./harness

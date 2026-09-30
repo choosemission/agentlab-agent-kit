@@ -3,7 +3,7 @@
 #   docker compose -f deploy/docker-compose.yml up --build -d
 #   ./deploy/check.sh            # the tunnel and the doors behave
 #
-# See deploy/DEPLOY.md. Reads ../.env and ../peers.toml; neither is committed.
+# See deploy/DEPLOY.md. Reads ../.env, which is never committed.
 #
 # The tunnel is a Cloudflare *quick* tunnel: no account, and a new
 # `*.trycloudflare.com` hostname every time the container starts. Each new
@@ -19,12 +19,8 @@ services:
     environment:
       # Paths inside the container, whatever .env says for running on the host.
       LABAGENT_DB: /app/data/labagent.sqlite3
-      LABAGENT_PEERS: /app/peers.toml
     volumes:
-      - ../peers.toml:/app/peers.toml:ro
       - agent-data:/app/data
-      # Written only while LABAGENT_CAPTURE_DIR=/app/captures is set in .env.
-      - ../captures:/app/captures
     # No `ports:`. Nothing on this machine or the network reaches the agent
     # except through the tunnel. The owner MCP server (:8081, owner key) is not
     # tunnelled yet: `docker compose -f deploy/docker-compose.yml exec agent python -m labagent …`.

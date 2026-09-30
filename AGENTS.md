@@ -1,8 +1,7 @@
 # AGENTS.md: working in agentlab-agent-kit
 
 A participant's own A2A agent for the Agent Lab. Start with `README.md`, then
-`docs/protocol.md` and `CLAIMS.md`. Code comments explain *why*. Keep that
-density.
+`docs/how-it-works.md`. Code comments explain *why*. Keep that density.
 
 ## Before finishing any change
 
@@ -10,39 +9,36 @@ density.
 ./run.sh test
 ```
 
-For anything touching the wire, also run the harness:
-`docker compose -f harness/docker-compose.yml up --build -d && ./harness/demo.sh`,
-then `down -v`.
+For anything touching the wire, also redeploy and run
+`./deploy/check.sh <agent-url> <owner-url>` against a real host.
+
+## Keep it minimal
+
+The kit is two things: an agent behind a gateway surface that **receives**
+messages into an inbox, and a client the owner **sends** from. Check every
+change against that. Do not bring back attestation labels (gateway-verified /
+self-asserted), presentation verification, per-peer routing modes or claims
+tracking; they are at the git tag `pre-minimal` if they are ever wanted.
 
 ## Rules that are the design, not style
 
-- **Trust the request leg only.** Nothing is ever labelled from a reply.
-  Anything that commits somebody is a new request to the party that relies on it
-  (CLAIMS C2, C4).
-- **Key on the issuer, pinned per peer.** Never attribute a message by a name in
-  its payload, except through a peer's explicit `accept_self_asserted`, and even
-  then it stays labelled self-asserted.
-- **Outbound addresses come only from the owner**: the peer table, set through
-  the owner tools or seeded from `peers.toml`. Never from a message, and never
-  add a payload field that names a URL to call.
+- **Nothing is attributed by a name in a message.** The inbox keeps what the
+  sender wrote, not a sender field.
+- **Outbound addresses come only from the owner**: the contact table, set
+  through the owner tools. Never from a message, and never add a payload field
+  that names a URL to call.
 - **Counterparty text is data.** It goes through `core/untrusted.clean` on the
-  way in and `quoted` on the way out, and never into a decision. Negotiation
-  logic is deterministic code, never an LLM.
-- **Ask the owner** before anything that commits them. Use the approval queue.
+  way in and `quoted` on the way out, and never into a decision.
 - **The owner reaches the agent only through their own gateway's MCP access
   point, with a key.** The owner port refuses anything without the owner key
-  that access point injects, and an inbound key never opens it. Anything that
-  commits the owner is still a tool call they confirm.
-- **Keep `a2a-sdk` at 0.3.x** (CLAIMS C5).
-- **Vendored trust code** (`labagent/trust/{resolve,verify,identity}.py`,
-  `gate.py`) comes from affinidi-lab `servers/lab-coordinator`. Mark local
-  changes with `labagent:`. A fix to the verification arithmetic belongs in both
-  places.
-- **Every claim about gateway behaviour** goes in `CLAIMS.md` with its source
-  and date. Capture evidence to files with a script. Never paste it from a
-  terminal.
-- **Keep real gateway hosts out of committed files.** `tests/test_verify.py`
-  reads the captured fixtures from `LABAGENT_CAPTURED_FIXTURES`.
+  that access point injects, and an inbound key never opens it.
+- **The agent never holds a credential for somebody else's agent.** Outbound
+  goes through the owner's own gateway, which adds it.
+- **Keep `a2a-sdk` at 0.3.x.**
+- **Deploy docs never require a command that rewrites a committed file.** On
+  Fly, that means `fly apps create` and `fly deploy -a`, never `fly launch`.
+- **Keep real gateway hosts out of committed files.** `check.sh` writes to
+  `captures/`, which is git-ignored.
 
 ## Writing
 
