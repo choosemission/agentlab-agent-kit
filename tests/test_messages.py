@@ -29,7 +29,8 @@ def post(lab, body: dict) -> httpx.Response:
 class TestSend:
     def test_a_message_reaches_the_other_inbox_and_the_reply_comes_back(self, lab) -> None:
         sent = run(lab.owner(lab.alice, "send", {"to": "bob", "text": "Hello Bob, it's Alice."}))
-        assert sent == {"ok": True, "to": "bob", "reply": "Received."}
+        assert sent["ok"] is True and sent["to"] == "bob" and sent["reply"] == "Received."
+        assert sent["state"] == "completed" and sent["task_id"] and sent["context_id"]
         messages = run(lab.owner(lab.bob, "inbox"))["messages"]
         assert [m["text"] for m in messages] == ["Hello Bob, it's Alice."]
         assert run(lab.owner(lab.bob, "health"))["inbox"] == 1

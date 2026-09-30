@@ -15,7 +15,7 @@ from labagent.send import reply_text, request
 
 from .conftest import ALICE_KEY, ALICE_OWNER_KEY
 
-TOOLS = {"health", "inbox", "send", "ping", "contacts", "contacts_add", "contacts_remove"}
+TOOLS = {"health", "inbox", "card", "send", "ping", "contacts", "contacts_add", "contacts_remove"}
 
 
 def call(app, method: str, path: str, **kw) -> httpx.Response:

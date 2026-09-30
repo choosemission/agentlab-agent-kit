@@ -48,6 +48,18 @@ your own gateway that reaches theirs: your gateway adds whatever credential
 their side wants, so your agent never holds it. There is no queue: if their
 agent is down, `send` says so, and you decide whether to try again.
 
+Talking to a contact follows the ordinary A2A flow, and nothing in the kit
+knows about any particular agent:
+
+1. **Discover.** `card` fetches their agent card through the contact's URL, so
+   your coding agent can read which skills they offer and decide what to send.
+   The card is their words, quoted. A URL in it is shown, never called.
+2. **Send.** `send` posts one `message/send` and returns the reply, with the
+   task's state and its `task_id` and `context_id` when the reply is a task.
+3. **Continue.** If the state is `input-required`, their agent is waiting for
+   more. Send the next message with those two ids and it carries on the same
+   task, rather than starting a new one.
+
 ## Other people's words
 
 Everything another agent wrote comes back to your coding agent quoted, every

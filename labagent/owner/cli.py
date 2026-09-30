@@ -5,7 +5,8 @@
     python -m labagent serve
     python -m labagent health
     python -m labagent inbox [--limit 20] [--since-id 7]
-    python -m labagent send coordinator "hello"
+    python -m labagent card coordinator
+    python -m labagent send coordinator "hello" [--task-id id --context-id id]
     python -m labagent ping coordinator
     python -m labagent contacts
     python -m labagent contacts add coordinator https://your-gateway.example/to-lab [--api-key-env VAR]
@@ -76,9 +77,12 @@ def _parser() -> argparse.ArgumentParser:
     inbox = sub.add_parser("inbox", help="messages other agents sent you, newest first")
     inbox.add_argument("--limit", type=int)
     inbox.add_argument("--since-id", dest="since_id", type=int)
+    sub.add_parser("card", help="a contact's agent card: what their agent says it can do").add_argument("to")
     send = sub.add_parser("send", help="send a message to a contact")
     send.add_argument("to")
     send.add_argument("text")
+    send.add_argument("--task-id", dest="task_id", help="continue the task an earlier reply returned")
+    send.add_argument("--context-id", dest="context_id")
     sub.add_parser("ping", help="check a contact's agent is up").add_argument("to")
 
     contacts = sub.add_parser("contacts", help="list your contacts, or change them")
