@@ -37,9 +37,10 @@ Generate its settings once, on your own machine, into `.env` (never committed):
 ```bash
 cp .env.example .env
 # In .env:
-#   LABAGENT_NAME=…           what your agent calls itself
+#   LABAGENT_NAME=…           what your agent calls itself; gateways mint its DID from this, so keep it stable
 #   LABAGENT_API_KEYS=…       openssl rand -hex 32   (the inbound key)
 #   LABAGENT_OWNER_KEYS=…     openssl rand -hex 32   (the owner key: a different one)
+#   LABAGENT_OUTBOUND_KEY=…   the key your gateway wants on your outbound access points (§5)
 ```
 
 The agent refuses to start without both keys, or if they share a key. Keep
@@ -57,7 +58,7 @@ name; every command names it, so `fly.toml` is never rewritten.
 APP=my-lab-agent                               # yours; it becomes <app>.fly.dev
 fly apps create $APP
 fly volumes create labagent_data --size 1 -a $APP --region lhr   # the region fly.toml names
-grep -E '^LABAGENT_(NAME|API_KEYS|OWNER_KEYS)=' .env | fly secrets import -a $APP
+grep -E '^LABAGENT_(NAME|API_KEYS|OWNER_KEYS|OUTBOUND_KEY)=' .env | fly secrets import -a $APP
 fly deploy -a $APP
 ./deploy/check.sh https://$APP.fly.dev https://$APP.fly.dev:8443   # every line PASS
 ```
@@ -172,6 +173,13 @@ lab inbox                                          # │ hello from myself
 Sending to somebody else works the same way, except the contact's URL is an
 access point on your own gateway that reaches theirs. Your gateway adds the
 credential their access point wants, so your agent never holds it.
+
+**Your outbound access points.** Give them API-key source authentication with
+the header name `Authorization`, and one key for all of them. Put that key in
+`LABAGENT_OUTBOUND_KEY`: the agent sends it, as it is and with no `Bearer`, on
+every card fetch, message and ping, to every contact. That is why every
+contact's URL must be an access point on your own gateway: a contact anywhere
+else would be handed your gateway's key.
 
 ## Keeping it up
 

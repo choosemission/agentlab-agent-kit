@@ -124,3 +124,15 @@ class TestConfig:
     def test_an_owner_key_may_not_be_an_inbound_key(self) -> None:
         with pytest.raises(ConfigurationError, match="also an inbound key"):
             config_from_env({"LABAGENT_API_KEYS": "a" * 64, "LABAGENT_OWNER_KEYS": "a" * 64})
+
+    def test_the_outbound_key_may_not_open_either_door(self) -> None:
+        for key in ("a" * 64, "o" * 64):
+            with pytest.raises(ConfigurationError, match="LABAGENT_OUTBOUND_KEY"):
+                config_from_env(
+                    {"LABAGENT_API_KEYS": "a" * 64, "LABAGENT_OWNER_KEYS": "o" * 64, "LABAGENT_OUTBOUND_KEY": key}
+                )
+
+    def test_the_outbound_key_is_optional(self) -> None:
+        env = {"LABAGENT_API_KEYS": "a" * 64, "LABAGENT_OWNER_KEYS": "o" * 64}
+        assert config_from_env(env).outbound_key is None
+        assert config_from_env({**env, "LABAGENT_OUTBOUND_KEY": " gw-key "}).outbound_key == "gw-key"

@@ -35,7 +35,7 @@ from .core.store import Store
 from .gate import ApiKeyGate
 from .inbox import Executor, Inbox
 from .owner.mcp import create_owner_app
-from .send import TIMEOUT, Sender
+from .send import TIMEOUT, Sender, identity
 
 log = logging.getLogger("labagent")
 
@@ -98,7 +98,11 @@ def build(config: Config, *, client: httpx.AsyncClient | None = None) -> Agent:
         store=store,
         inbox=Inbox(store),
         contacts=Contacts(store, allow_http=config.allow_http_contacts),
-        sender=Sender(client or httpx.AsyncClient(timeout=TIMEOUT)),
+        sender=Sender(
+            client or httpx.AsyncClient(timeout=TIMEOUT),
+            identity=identity(config.name, __version__),
+            outbound_key=config.outbound_key,
+        ),
     )
     handler = DefaultRequestHandler(agent_executor=Executor(agent.inbox), task_store=InMemoryTaskStore())
     public = A2AStarletteApplication(agent_card=create_agent_card(config), http_handler=handler).build()

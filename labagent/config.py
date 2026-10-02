@@ -36,6 +36,10 @@ class Config:
     db_path: str = "data/labagent.sqlite3"
     #: Local testing only: let a contact's url be plain http://.
     allow_http_contacts: bool = False
+    #: The key your own gateway wants on the access points your contacts' URLs
+    #: name, sent in `Authorization` on every outbound call. One key for all of
+    #: them, because every contact is reached through your gateway first.
+    outbound_key: str | None = None
 
 
 def _keys(env: Mapping[str, str], name: str) -> tuple[str, ...]:
@@ -66,6 +70,13 @@ def config_from_env(env: Mapping[str, str] | None = None) -> Config:
             "Generate a separate one with: openssl rand -hex 32"
         )
 
+    outbound_key = env.get("LABAGENT_OUTBOUND_KEY", "").strip() or None
+    if outbound_key and outbound_key in keys + owner_keys:
+        raise ConfigurationError(
+            "LABAGENT_OUTBOUND_KEY is also an inbound or owner key. It is sent on every outbound call, "
+            "so it must not open either of your agent's doors. Use your gateway's own key for it."
+        )
+
     port = int(env.get("LABAGENT_PORT", "8080"))
     return Config(
         name=env.get("LABAGENT_NAME", "Lab agent"),
@@ -77,4 +88,5 @@ def config_from_env(env: Mapping[str, str] | None = None) -> Config:
         owner_port=int(env.get("LABAGENT_OWNER_PORT", "8081")),
         db_path=env.get("LABAGENT_DB", "data/labagent.sqlite3"),
         allow_http_contacts=env.get("LABAGENT_ALLOW_HTTP_CONTACTS") == "true",
+        outbound_key=outbound_key,
     )

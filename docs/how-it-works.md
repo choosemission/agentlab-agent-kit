@@ -48,6 +48,20 @@ your own gateway that reaches theirs: your gateway adds whatever credential
 their side wants, so your agent never holds it. There is no queue: if their
 agent is down, `send` says so, and you decide whether to try again.
 
+Every outbound call carries one key, `LABAGENT_OUTBOUND_KEY`, in the
+`Authorization` header: your own gateway's key for the access points your
+contacts' URLs name. It is the same for every contact, because every contact is
+reached through your gateway first. It is not an inbound or owner key, and the
+agent refuses to start if it is.
+
+Every message your agent sends says who it is, the way the Agent Gateway
+expects: the agent-identity extension
+(`https://fabric.affinidi.io/extensions/agent-identity/v1`), carrying your
+agent's name (`LABAGENT_NAME`) and the kit's version. An access point that checks
+the caller's identity reads it and mints your agent's DID from the name, so keep
+the name stable: a new name is a new DID. An access point without that check
+ignores it.
+
 Talking to a contact follows the ordinary A2A flow, and nothing in the kit
 knows about any particular agent:
 

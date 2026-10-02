@@ -3,7 +3,7 @@
 #
 #   fly apps create <app>
 #   fly volumes create labagent_data --size 1 -a <app> --region lhr
-#   grep -E '^LABAGENT_(NAME|API_KEYS|OWNER_KEYS)=' .env | fly secrets import -a <app>
+#   grep -E '^LABAGENT_(NAME|API_KEYS|OWNER_KEYS|OUTBOUND_KEY)=' .env | fly secrets import -a <app>
 #   fly deploy -a <app>
 #   ./deploy/check.sh https://<app>.fly.dev https://<app>.fly.dev:8443
 #

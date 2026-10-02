@@ -9,6 +9,7 @@ that record what reached her.
 from __future__ import annotations
 
 import asyncio
+from dataclasses import replace
 
 from starlette.applications import Starlette
 from starlette.requests import Request
@@ -41,10 +42,13 @@ CAROL_CARD = {
 }
 
 
-def carol(received: list[dict]) -> Starlette:
+def carol(received: list[dict], headers: list[dict] | None = None) -> Starlette:
+    seen = headers if headers is not None else []
+
     async def rpc(request: Request) -> JSONResponse:
         body = await request.json()
         received.append(body)
+        seen.append(dict(request.headers))
         message = body["params"]["message"]
         state, words = ("completed", "Booked for two.") if message.get("taskId") else ("input-required", "How many?")
         task = {
@@ -55,7 +59,8 @@ def carol(received: list[dict]) -> Starlette:
         }
         return JSONResponse({"jsonrpc": "2.0", "id": body["id"], "result": task})
 
-    async def card(_: Request) -> JSONResponse:
+    async def card(request: Request) -> JSONResponse:
+        seen.append(dict(request.headers))
         return JSONResponse(CAROL_CARD)
 
     async def missing(_: Request) -> Response:
@@ -157,3 +162,43 @@ class TestContinue:
         cli.main(["send", "carol", "two", "--task-id", "task-1", "--context-id", "ctx-1"])
         assert "│ Booked for two." in capsys.readouterr().out
         assert received[-1]["params"]["message"]["taskId"] == "task-1"
+
+
+class TestIdentity:
+    def test_every_message_declares_the_agent_identity(self, lab) -> None:
+        received = with_carol(lab)
+        run(lab.owner(lab.alice, "send", {"to": "carol", "text": "book a table"}))
+        run(lab.owner(lab.alice, "send", {"to": "carol", "text": "two", "task_id": "task-1", "context_id": "ctx-1"}))
+        run(lab.owner(lab.alice, "ping", {"to": "carol"}))
+        uri = "https://fabric.affinidi.io/extensions/agent-identity/v1"
+        for body in received:
+            message = body["params"]["message"]
+            assert message["extensions"] == [uri]
+            assert message["metadata"][uri]["agentIdentity"]["name"] == "Alice's agent"
+            assert message["metadata"][uri]["agentIdentity"]["version"]
+
+    def test_a_kit_agent_still_takes_a_message_that_declares_one(self, lab) -> None:
+        answer = run(lab.owner(lab.alice, "send", {"to": "bob", "text": "hello"}))
+        assert answer["ok"] is True and answer["reply"] == "Received."
+        assert "hello" in run(lab.owner(lab.bob, "inbox"))["messages"][0]["text"]
+
+
+class TestOutboundKey:
+    def test_every_outbound_call_carries_the_gateway_key_in_authorization(self, lab) -> None:
+        lab.alice.config = replace(lab.alice.config, outbound_key="gw-key-for-alice")
+        lab.restart("alice")
+        headers: list[dict] = []
+        lab.network.apps["carol.test"] = carol([], headers)
+        lab.alice.contacts.add(Contact("carol", "http://carol.test/a2a/"))
+        run(lab.owner(lab.alice, "card", {"to": "carol"}))
+        run(lab.owner(lab.alice, "send", {"to": "carol", "text": "hi"}))
+        run(lab.owner(lab.alice, "ping", {"to": "carol"}))
+        assert len(headers) == 3
+        assert all(h["authorization"] == "gw-key-for-alice" for h in headers)
+
+    def test_without_one_no_authorization_is_sent(self, lab) -> None:
+        headers: list[dict] = []
+        lab.network.apps["carol.test"] = carol([], headers)
+        lab.alice.contacts.add(Contact("carol", "http://carol.test/a2a/"))
+        run(lab.owner(lab.alice, "send", {"to": "carol", "text": "hi"}))
+        assert "authorization" not in headers[0]

@@ -10,9 +10,11 @@ outbound call one you configured.
 
 The URL is normally an access point on **your own** gateway that carries the
 call to the other agent's access point. Your gateway adds whatever credential
-the other side wants, so this process never holds it. If your own access point
-wants a key from the agent, name the environment variable that holds it in
-`api_key_env`; the value never goes in the table.
+the other side wants, so this process never holds it. The key your own gateway
+wants from the agent is one for every contact, `LABAGENT_OUTBOUND_KEY`, sent in
+`Authorization` (see `send.Sender`). A contact that wants a key of its own in
+`x-api-key` names the environment variable holding it in `api_key_env`; the
+value never goes in the table.
 """
 
 from __future__ import annotations

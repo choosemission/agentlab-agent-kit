@@ -45,17 +45,41 @@ STATES = frozenset(
 #: kept, so an id can be shown and sent back without quoting.
 _ID = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
 
+#: The Agent Gateway's identity extension, as in the Lab's hello-agent client.
+#: An access point whose inbound Identity element is set reads the descriptor
+#: under this key and mints the caller's DID from it; without it the call is
+#: refused with `identity_validation_failed`. The URI and the envelope shape are
+#: matched by the gateway, so they are kept exactly.
+IDENTITY_EXT_URI = "https://fabric.affinidi.io/extensions/agent-identity/v1"
+
 
 class SendError(RuntimeError):
     pass
 
 
-def request(text: str, *, task_id: str | None = None, context_id: str | None = None) -> dict[str, Any]:
+def identity(name: str, version: str) -> dict[str, Any]:
+    """What this agent declares about itself on every message. The gateway
+    extracts the fields its schema marks for identity, normally the name, so
+    renaming the agent gives it a different DID. The version is sent, and is not
+    meant to be one of those fields."""
+    return {"agentIdentity": {"name": name, "version": version}}
+
+
+def request(
+    text: str,
+    *,
+    task_id: str | None = None,
+    context_id: str | None = None,
+    identity: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     message: dict[str, Any] = {
         "role": "user",
         "messageId": uuid.uuid4().hex,
         "parts": [{"kind": "text", "text": text}],
     }
+    if identity:
+        message["extensions"] = [IDENTITY_EXT_URI]
+        message["metadata"] = {IDENTITY_EXT_URI: identity}
     # Carrying both ids is how A2A continues a task rather than starting another.
     if task_id:
         message["taskId"] = task_id
@@ -133,12 +157,24 @@ def card_summary(raw: Any) -> dict[str, Any]:
 
 
 class Sender:
-    def __init__(self, client: httpx.AsyncClient | None = None) -> None:
+    def __init__(
+        self,
+        client: httpx.AsyncClient | None = None,
+        *,
+        identity: dict[str, Any] | None = None,
+        outbound_key: str | None = None,
+    ) -> None:
         self._client = client or httpx.AsyncClient(timeout=TIMEOUT)
+        self._identity = identity
+        self._outbound_key = outbound_key
 
-    @staticmethod
-    def _headers(contact: Contact) -> dict[str, str]:
+    def _headers(self, contact: Contact) -> dict[str, str]:
         headers = {"content-type": "application/json"}
+        # Your own gateway's key, as is, for every contact: their URLs are all
+        # access points on that gateway. httpx does not follow redirects, so it
+        # goes to the contact's URL and nowhere else.
+        if self._outbound_key:
+            headers["authorization"] = self._outbound_key
         key = contact.api_key()
         if key:
             headers["x-api-key"] = key
@@ -168,7 +204,7 @@ class Sender:
         self, contact: Contact, text: str, *, task_id: str | None = None, context_id: str | None = None
     ) -> dict[str, Any]:
         """Send one message; return the reply (see `reply`). Raises SendError."""
-        body = request(text, task_id=task_id, context_id=context_id)
+        body = request(text, task_id=task_id, context_id=context_id, identity=self._identity)
         try:
             response = await self._client.post(contact.url, json=body, headers=self._headers(contact))
         except httpx.HTTPError as error:
