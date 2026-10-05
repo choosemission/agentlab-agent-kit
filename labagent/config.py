@@ -14,6 +14,12 @@ from dataclasses import dataclass
 from typing import Mapping
 
 
+#: The Agent Lab's IdP. The register-your-agent recipe has every participant's
+#: access point accept its tokens, so it is what a kit agent's card declares
+#: unless LABAGENT_LAB_ISSUER says otherwise.
+LAB_ISSUER = "https://idp.agentlab.choosemission.com/realms/mission-agent-lab"
+
+
 class ConfigurationError(RuntimeError):
     """The deployment is wrong. Raised at start-up, never per request."""
 
@@ -40,6 +46,10 @@ class Config:
     #: name, sent in `Authorization` on every outbound call. One key for all of
     #: them, because every contact is reached through your gateway first.
     outbound_key: str | None = None
+    #: The Lab IdP that issues the token your access point requires: a Lab
+    #: agent token, client credentials, audience `lab-agents`. Declared on the
+    #: agent card so a caller knows what to present. None declares nothing.
+    lab_issuer: str | None = LAB_ISSUER
 
 
 def _keys(env: Mapping[str, str], name: str) -> tuple[str, ...]:
@@ -81,6 +91,8 @@ def config_from_env(env: Mapping[str, str] | None = None) -> Config:
     return Config(
         name=env.get("LABAGENT_NAME", "Lab agent"),
         public_url=env.get("LABAGENT_PUBLIC_URL") or f"http://localhost:{port}",
+        # Unset means the Lab's; set but empty means declare nothing.
+        lab_issuer=(env.get("LABAGENT_LAB_ISSUER", LAB_ISSUER) or "").strip() or None,
         api_keys=keys,
         allow_anonymous=allow_anonymous,
         owner_keys=owner_keys,

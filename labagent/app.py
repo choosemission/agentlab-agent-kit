@@ -23,7 +23,15 @@ import httpx
 from a2a.server.apps import A2AStarletteApplication
 from a2a.server.request_handlers import DefaultRequestHandler
 from a2a.server.tasks import InMemoryTaskStore
-from a2a.types import AgentCapabilities, AgentCard, AgentSkill, APIKeySecurityScheme, In, SecurityScheme
+from a2a.types import (
+    AgentCapabilities,
+    AgentCard,
+    AgentSkill,
+    ClientCredentialsOAuthFlow,
+    OAuth2SecurityScheme,
+    OAuthFlows,
+    SecurityScheme,
+)
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
@@ -40,6 +48,32 @@ from .send import TIMEOUT, Sender, identity
 log = logging.getLogger("labagent")
 
 
+def lab_agent_token(issuer: str) -> SecurityScheme:
+    """What a caller presents at your access point: a Lab agent token, a
+    client-credentials JWT from the Lab IdP with audience `lab-agents`.
+
+    The card declares what the access point requires, not what reaches this
+    process. The key your gateway adds on the last leg stays between your
+    gateway and you, and a card that named it told callers to send something
+    they can never hold."""
+    issuer = issuer.rstrip("/")
+    return SecurityScheme(
+        root=OAuth2SecurityScheme(
+            description=(
+                "A Lab agent token: a client-credentials JWT from the Agent Lab's IdP, with audience "
+                "lab-agents. Create an agent client from your Lab account; your own gateway can add the "
+                "token on a route, so your agent never holds it."
+            ),
+            flows=OAuthFlows(
+                client_credentials=ClientCredentialsOAuthFlow(
+                    token_url=f"{issuer}/protocol/openid-connect/token", scopes={}
+                )
+            ),
+            oauth2_metadata_url=f"{issuer}/.well-known/oauth-authorization-server",
+        )
+    )
+
+
 def create_agent_card(config: Config) -> AgentCard:
     return AgentCard(
         name=config.name,
@@ -52,16 +86,8 @@ def create_agent_card(config: Config) -> AgentCard:
         default_input_modes=["text/plain"],
         default_output_modes=["text/plain"],
         capabilities=AgentCapabilities(streaming=False),
-        security_schemes={
-            "gatewayApiKey": SecurityScheme(
-                root=APIKeySecurityScheme(
-                    name="x-api-key",
-                    in_=In.header,
-                    description="Injected by the owner's gateway on the last leg. Callers do not hold it.",
-                )
-            )
-        },
-        security=[{"gatewayApiKey": []}],
+        security_schemes={"labAgentToken": lab_agent_token(config.lab_issuer)} if config.lab_issuer else None,
+        security=[{"labAgentToken": []}] if config.lab_issuer else None,
         skills=[
             AgentSkill(
                 id="message",

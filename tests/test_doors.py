@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import socket
 import threading
 import time
@@ -10,7 +11,8 @@ import time
 import httpx
 import pytest
 
-from labagent.config import ConfigurationError, config_from_env
+from labagent.app import create_agent_card
+from labagent.config import LAB_ISSUER, ConfigurationError, config_from_env
 from labagent.send import reply_text, request
 
 from .conftest import ALICE_KEY, ALICE_OWNER_KEY
@@ -52,6 +54,21 @@ class TestPublicDoor:
         assert card["name"] == "Alice's agent"
         assert {s["id"] for s in card["skills"]} == {"message", "ping"}
         assert card["url"] == "https://alice-gw.test/a2a/"
+
+    def test_the_card_declares_the_lab_agent_token_not_the_last_leg_key(self, lab) -> None:
+        card = call(lab.alice.public_app, "GET", "/.well-known/agent-card.json").json()
+        assert card["security"] == [{"labAgentToken": []}]
+        scheme = card["securitySchemes"]["labAgentToken"]
+        assert scheme["type"] == "oauth2"
+        assert scheme["flows"]["clientCredentials"]["tokenUrl"] == f"{LAB_ISSUER}/protocol/openid-connect/token"
+        assert scheme["oauth2MetadataUrl"] == f"{LAB_ISSUER}/.well-known/oauth-authorization-server"
+        assert "x-api-key" not in json.dumps(card)
+
+    def test_an_empty_issuer_declares_nothing(self) -> None:
+        env = {"LABAGENT_ALLOW_ANONYMOUS": "true", "LABAGENT_LAB_ISSUER": ""}
+        card = create_agent_card(config_from_env(env)).model_dump(by_alias=True, exclude_none=True)
+        assert "security" not in card and "securitySchemes" not in card
+        assert config_from_env({"LABAGENT_ALLOW_ANONYMOUS": "true"}).lab_issuer == LAB_ISSUER
 
     def test_health_needs_no_key(self, lab) -> None:
         assert call(lab.alice.public_app, "GET", "/healthz").status_code == 200
